@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/social-preview.png" alt="SnapBack" width="700" style="border-radius: 12px;">
+  <img src="assets/social-preview.png" alt="SnapBack" width="700">
 </p>
 
 <p align="center">
