@@ -32,6 +32,7 @@ Commands:
   status      Check if everything is configured correctly
   on          Enable Claude Code hooks
   off         Disable Claude Code hooks (keeps config)
+  update      Update to latest version
   uninstall   Remove config and hooks completely
   help        Show this help message
 
@@ -39,6 +40,7 @@ Examples:
   snapback install    # First-time setup
   snapback status     # Check configuration
   snapback off        # Temporarily disable
+  snapback update     # Get latest version
 
 More info: https://github.com/teoobarca/snapback
 EOF
@@ -226,9 +228,78 @@ cmd_uninstall() {
   rm -f "${TMPDIR:-/tmp}/snapback_resume_last" 2>/dev/null || true
   print_success "Removed temporary files"
 
+  # Remove symlink from PATH
+  if [[ -L "/usr/local/bin/snapback" ]]; then
+    if [[ -w "/usr/local/bin" ]]; then
+      rm -f "/usr/local/bin/snapback"
+      print_success "Removed /usr/local/bin/snapback"
+    else
+      print_info "Removing /usr/local/bin/snapback (requires sudo)..."
+      sudo rm -f "/usr/local/bin/snapback" 2>/dev/null && print_success "Removed /usr/local/bin/snapback" || print_warning "Could not remove /usr/local/bin/snapback"
+    fi
+  fi
+
+  if [[ -L "$HOME/.local/bin/snapback" ]]; then
+    rm -f "$HOME/.local/bin/snapback"
+    print_success "Removed ~/.local/bin/snapback"
+  fi
+
+  # Remove installation directory (if installed globally via get.sh)
+  if [[ -d "$HOME/.snapback" ]]; then
+    rm -rf "$HOME/.snapback"
+    print_success "Removed installation: ~/.snapback"
+  fi
+
   echo ""
   print_success "SnapBack uninstalled"
-  print_info "You can delete the snapback folder manually if desired"
+  echo ""
+}
+
+# ============================================================
+# UPDATE COMMAND
+# ============================================================
+cmd_update() {
+  echo ""
+  echo "SnapBack Update"
+  echo "───────────────"
+  echo ""
+
+  local repo_url="https://github.com/teoobarca/snapback"
+
+  # Check if we're in a git repo
+  if [[ -d "$SCRIPT_DIR/.git" ]]; then
+    print_info "Updating via git..."
+    cd "$SCRIPT_DIR"
+    if git pull origin main 2>/dev/null; then
+      print_success "Updated to latest version"
+    else
+      print_error "Git pull failed"
+      print_info "Try: cd $SCRIPT_DIR && git pull"
+      exit 1
+    fi
+  else
+    print_info "Updating via tarball..."
+    local tmp_dir=$(mktemp -d)
+    if curl -sL "$repo_url/archive/main.tar.gz" | tar xz -C "$tmp_dir" --strip-components=1; then
+      # Copy new files, preserving user's config
+      cp "$tmp_dir/snapback" "$SCRIPT_DIR/"
+      cp "$tmp_dir/snapback.sh" "$SCRIPT_DIR/"
+      cp "$tmp_dir/snapback-resume.sh" "$SCRIPT_DIR/"
+      cp "$tmp_dir/install.sh" "$SCRIPT_DIR/"
+      cp "$tmp_dir/notification.mp3" "$SCRIPT_DIR/" 2>/dev/null || true
+      chmod +x "$SCRIPT_DIR/snapback" "$SCRIPT_DIR/snapback.sh" "$SCRIPT_DIR/snapback-resume.sh" "$SCRIPT_DIR/install.sh"
+      rm -rf "$tmp_dir"
+      print_success "Updated to latest version"
+    else
+      rm -rf "$tmp_dir"
+      print_error "Download failed"
+      exit 1
+    fi
+  fi
+
+  echo ""
+  # Show new version
+  "$SCRIPT_DIR/snapback" --version
   echo ""
 }
 
@@ -263,6 +334,9 @@ main() {
       ;;
     off|disable)
       cmd_off
+      ;;
+    update)
+      cmd_update
       ;;
     uninstall|remove)
       cmd_uninstall

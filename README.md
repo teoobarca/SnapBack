@@ -42,15 +42,24 @@ No more missed prompts. No more context switching friction.
 ## Installation
 
 ```bash
+curl -fsSL https://raw.githubusercontent.com/teoobarca/snapback/main/get.sh | bash
+```
+
+The installer will:
+- Download SnapBack to `~/.snapback/`
+- Add `snapback` command to your PATH
+- Guide you through configuration
+
+<details>
+<summary>Alternative: Manual installation</summary>
+
+```bash
 git clone https://github.com/teoobarca/snapback.git
 cd snapback
 ./snapback install
 ```
 
-The installer will guide you through:
-- Configuring your preferred apps and browser
-- Setting up Claude Code hooks
-- Granting macOS automation permissions
+</details>
 
 ---
 
@@ -61,6 +70,7 @@ snapback install     # Interactive installation
 snapback status      # Check if everything is configured
 snapback on          # Enable Claude Code hooks
 snapback off         # Disable hooks (keeps config)
+snapback update      # Update to latest version
 snapback uninstall   # Remove config and hooks
 ```
 
