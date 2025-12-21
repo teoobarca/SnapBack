@@ -270,28 +270,38 @@ cmd_update() {
 
   local repo_url="https://github.com/teoobarca/snapback"
 
+  # Resolve actual install directory (follow symlinks)
+  local install_dir="$SCRIPT_DIR"
+  if [[ -L "$0" ]]; then
+    # We're running from a symlink, find the real location
+    local real_path=$(readlink "$0" 2>/dev/null || true)
+    if [[ -n "$real_path" ]]; then
+      install_dir="$(cd "$(dirname "$real_path")" && pwd)"
+    fi
+  fi
+
   # Check if we're in a git repo
-  if [[ -d "$SCRIPT_DIR/.git" ]]; then
+  if [[ -d "$install_dir/.git" ]]; then
     print_info "Updating via git..."
-    cd "$SCRIPT_DIR"
+    cd "$install_dir"
     if git pull origin main 2>/dev/null; then
       print_success "Updated to latest version"
     else
       print_error "Git pull failed"
-      print_info "Try: cd $SCRIPT_DIR && git pull"
+      print_info "Try: cd $install_dir && git pull"
       exit 1
     fi
   else
     print_info "Updating via tarball..."
     local tmp_dir=$(mktemp -d)
     if curl -sL "$repo_url/archive/main.tar.gz" | tar xz -C "$tmp_dir" --strip-components=1; then
-      # Copy new files, preserving user's config
-      cp "$tmp_dir/snapback" "$SCRIPT_DIR/"
-      cp "$tmp_dir/snapback.sh" "$SCRIPT_DIR/"
-      cp "$tmp_dir/snapback-resume.sh" "$SCRIPT_DIR/"
-      cp "$tmp_dir/install.sh" "$SCRIPT_DIR/"
-      cp "$tmp_dir/notification.mp3" "$SCRIPT_DIR/" 2>/dev/null || true
-      chmod +x "$SCRIPT_DIR/snapback" "$SCRIPT_DIR/snapback.sh" "$SCRIPT_DIR/snapback-resume.sh" "$SCRIPT_DIR/install.sh"
+      # Copy new files to install directory
+      cp "$tmp_dir/snapback" "$install_dir/"
+      cp "$tmp_dir/snapback.sh" "$install_dir/"
+      cp "$tmp_dir/snapback-resume.sh" "$install_dir/"
+      cp "$tmp_dir/install.sh" "$install_dir/"
+      cp "$tmp_dir/notification.mp3" "$install_dir/" 2>/dev/null || true
+      chmod +x "$install_dir/snapback" "$install_dir/snapback.sh" "$install_dir/snapback-resume.sh" "$install_dir/install.sh"
       rm -rf "$tmp_dir"
       print_success "Updated to latest version"
     else
@@ -303,7 +313,7 @@ cmd_update() {
 
   echo ""
   # Show new version
-  "$SCRIPT_DIR/snapback" --version
+  "$install_dir/snapback" --version
   echo ""
 }
 
