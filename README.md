@@ -3,6 +3,8 @@
 A macOS utility that automatically manages your attention when Claude Code needs input.
 It pauses media in your browser and brings your development tools to the foreground, then "snaps" you back to where you were when you're done.
 
+![SnapBack](assets/social-preview.png)
+
 ## Features
 
 - **Media Control**: Pauses video/audio in browser active tabs (YouTube, etc.)

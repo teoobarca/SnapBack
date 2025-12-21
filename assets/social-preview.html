@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SnapBack Social Preview</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; }
+
+    .gradient-bg {
+      background: radial-gradient(ellipse at 50% 0%, rgba(217, 119, 87, 0.15) 0%, transparent 50%),
+                  linear-gradient(180deg, #111111 0%, #0a0a0a 100%);
+    }
+  </style>
+</head>
+<body class="bg-black">
+  <!-- Container exactly 1280x640 -->
+  <div class="w-[1280px] h-[640px] gradient-bg flex items-center justify-center px-20 gap-16">
+
+    <!-- Left side: Text -->
+    <div class="flex-1">
+      <!-- Claude logo + badge -->
+      <div class="flex items-center gap-3 mb-8">
+        <img src="claude-logo.webp" alt="Claude" class="w-8 h-8">
+        <span class="text-base text-neutral-400">for Claude Code</span>
+      </div>
+
+      <!-- Title - BIGGER -->
+      <h1 class="text-7xl font-bold text-white tracking-tight mb-6">
+        Snap<span class="text-[#D97757]">Back</span>
+      </h1>
+
+      <!-- Description - BIGGER -->
+      <p class="text-2xl text-neutral-400 leading-relaxed max-w-lg">
+        Never miss Claude's questions. Pauses your video, focuses your IDE, snaps you back.
+      </p>
+    </div>
+
+    <!-- Right side: Visual flow - BIGGER boxes -->
+    <div class="flex items-center gap-5">
+
+      <!-- Step 1: Browser paused -->
+      <div class="flex flex-col items-center gap-4">
+        <div class="w-32 h-32 rounded-3xl bg-white/5 border border-white/10 flex items-center justify-center relative">
+          <!-- Pause icon - bigger -->
+          <svg class="w-14 h-14 text-neutral-500" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z"/>
+          </svg>
+          <!-- YouTube logo -->
+          <div class="absolute -top-2 -right-2 w-10 h-7">
+            <svg viewBox="0 0 28.57 20" xmlns="http://www.w3.org/2000/svg">
+              <path d="M27.9727 3.12324C27.6435 1.89323 26.6768 0.926623 25.4468 0.597366C23.2197 2.24288e-07 14.285 0 14.285 0C14.285 0 5.35042 2.24288e-07 3.12323 0.597366C1.89323 0.926623 0.926623 1.89323 0.597366 3.12324C2.24288e-07 5.35042 0 10 0 10C0 10 2.24288e-07 14.6496 0.597366 16.8768C0.926623 18.1068 1.89323 19.0734 3.12323 19.4026C5.35042 20 14.285 20 14.285 20C14.285 20 23.2197 20 25.4468 19.4026C26.6768 19.0734 27.6435 18.1068 27.9727 16.8768C28.5701 14.6496 28.5701 10 28.5701 10C28.5701 10 28.5677 5.35042 27.9727 3.12324Z" fill="#FF0000"/>
+              <path d="M11.4253 14.2854L18.8477 10.0004L11.4253 5.71533V14.2854Z" fill="white"/>
+            </svg>
+          </div>
+        </div>
+        <span class="text-sm text-neutral-500 font-medium">Paused</span>
+      </div>
+
+      <!-- Arrow RIGHT - vertically centered with boxes -->
+      <div class="flex items-center h-32">
+        <svg class="w-10 h-10 text-[#D97757]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 7l5 5m0 0l-5 5m5-5H6"/>
+        </svg>
+      </div>
+
+      <!-- Step 2: IDE focused -->
+      <div class="flex flex-col items-center gap-4">
+        <div class="w-32 h-32 rounded-3xl bg-[#D97757]/15 border-2 border-[#D97757] flex items-center justify-center relative shadow-lg shadow-[#D97757]/20">
+          <!-- Code icon - bigger -->
+          <svg class="w-14 h-14 text-[#D97757]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/>
+          </svg>
+        </div>
+        <span class="text-sm text-[#D97757] font-medium">Focused</span>
+      </div>
+
+      <!-- Arrow LEFT - vertically centered with boxes -->
+      <div class="flex items-center h-32">
+        <svg class="w-10 h-10 text-neutral-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M11 17l-5-5m0 0l5-5m-5 5h12"/>
+        </svg>
+      </div>
+
+      <!-- Step 3: Snapped back -->
+      <div class="flex flex-col items-center gap-4">
+        <div class="w-32 h-32 rounded-3xl bg-white/5 border border-white/10 flex items-center justify-center relative">
+          <!-- Play icon - bigger -->
+          <svg class="w-14 h-14 text-neutral-400" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M8 5v14l11-7z"/>
+          </svg>
+          <!-- BIGGER snap back badge -->
+          <div class="absolute -top-3 -right-3 w-12 h-12 rounded-full bg-[#D97757] flex items-center justify-center shadow-lg shadow-[#D97757]/40">
+            <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/>
+            </svg>
+          </div>
+        </div>
+        <span class="text-sm text-neutral-500 font-medium">Snapped back</span>
+      </div>
+
+    </div>
+
+  </div>
+</body>
+</html>
