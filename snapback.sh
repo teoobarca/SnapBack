@@ -43,10 +43,12 @@ rm -f "$RESUME_THROTTLE_FILE" 2>/dev/null || true
 
 # Get frontmost app
 frontmost=$(osascript -e 'tell application "System Events" to get name of first application process whose frontmost is true' 2>/dev/null || true)
+frontmostLower=$(echo "$frontmost" | tr '[:upper:]' '[:lower:]')
 
-# If already in last focus app, just play sound and exit
+# If already in last focus app, just play sound and exit (case-insensitive comparison)
 lastFocusApp="${FOCUS_APPS[${#FOCUS_APPS[@]}-1]}"
-if [[ "$frontmost" == "$lastFocusApp" ]]; then
+lastFocusAppLower=$(echo "$lastFocusApp" | tr '[:upper:]' '[:lower:]')
+if [[ "$frontmostLower" == "$lastFocusAppLower" ]]; then
   if [[ -n "$NOTIFICATION_SOUND" && -f "$NOTIFICATION_SOUND" ]]; then
     afplay "$NOTIFICATION_SOUND" &
   fi
@@ -60,8 +62,8 @@ fi
 
 # Determine if we should save state (skip workflow apps)
 saveState=""
-skipApps=$(IFS="|"; echo "${FOCUS_APPS[*]}")
-if [[ -z "$frontmost" || "$frontmost" =~ ^($skipApps|SnapBack|snapback|applet)$ ]]; then
+skipApps=$(printf '%s|' "${FOCUS_APPS[@]}" | tr '[:upper:]' '[:lower:]' | sed 's/|$//')
+if [[ -z "$frontmost" || "$frontmostLower" =~ ^($skipApps|snapback|applet)$ ]]; then
   rm -f "$STATE_FILE" 2>/dev/null || true
 else
   saveState="$frontmost"

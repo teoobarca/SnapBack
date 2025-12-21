@@ -2,7 +2,7 @@
 # SnapBack CLI - Attention manager for Claude Code
 set -euo pipefail
 
-VERSION="1.0.0"
+VERSION="1.1.0"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/snapback"
 CONFIG_FILE="$CONFIG_DIR/config"
