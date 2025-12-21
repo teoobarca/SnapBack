@@ -1,0 +1,46 @@
+{
+  "hooks": {
+    "PermissionRequest": [
+      {
+        "hooks": [
+          {
+            "command": "/Users/hamper/Documents/Programming/AIAttention/launch-attention.sh",
+            "type": "command"
+          }
+        ],
+        "matcher": "*"
+      }
+    ],
+    "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "command": "open -g -a \"$HOME/Applications/AIResume.app\"",
+            "type": "command"
+          }
+        ],
+        "matcher": "Edit|Write|Bash"
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "command": "/Users/hamper/Documents/Programming/AIAttention/launch-attention.sh",
+            "type": "command"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "command": "open -g -a \"$HOME/Applications/AIResume.app\"",
+            "type": "command"
+          }
+        ]
+      }
+    ]
+  }
+}
