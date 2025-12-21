@@ -6,6 +6,10 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/snapback"
 CLAUDE_SETTINGS="$HOME/.claude/settings.json"
 
+# Default values
+BROWSER="Google Chrome"
+FOCUS_APPS=("Cursor" "Ghostty")
+
 echo "╔══════════════════════════════════════╗"
 echo "║         SnapBack Installer           ║"
 echo "╚══════════════════════════════════════╝"

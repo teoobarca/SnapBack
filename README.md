@@ -44,13 +44,25 @@ No more missed prompts. No more context switching friction.
 ```bash
 git clone https://github.com/teoobarca/snapback.git
 cd snapback
-./install.sh
+./snapback install
 ```
 
 The installer will guide you through:
 - Configuring your preferred apps and browser
 - Setting up Claude Code hooks
 - Granting macOS automation permissions
+
+---
+
+## CLI Usage
+
+```bash
+snapback install     # Interactive installation
+snapback status      # Check if everything is configured
+snapback on          # Enable Claude Code hooks
+snapback off         # Disable hooks (keeps config)
+snapback uninstall   # Remove config and hooks
+```
 
 ---
 
@@ -134,6 +146,7 @@ Add to `~/.claude/settings.json`:
 | Permission errors | System Settings → Privacy & Security → Automation |
 | Apps not focusing | Increase `FOCUS_DELAY` to `0.7` or `1.0` |
 | Too many notifications | Increase `THROTTLE_SECONDS` |
+| Check current status | Run `snapback status` |
 
 ---
 
