@@ -1,0 +1,20 @@
+# SnapBack Configuration
+# Copy this file to ~/.config/snapback/config and customize
+
+# Apps to focus when Claude needs attention (in order)
+FOCUS_APPS=("Cursor" "Ghostty")
+
+# Delay between focusing apps (seconds) - increase if apps don't focus properly
+FOCUS_DELAY=0.5
+
+# Browser to control (pause/resume media)
+BROWSER="Google Chrome"
+
+# Seconds to seek back when resuming video
+SEEK_BACK_SECONDS=1
+
+# Throttle time (seconds) - prevent rapid repeated triggers
+THROTTLE_SECONDS=2
+
+# Notification sound: path to .mp3 file, or empty to disable
+NOTIFICATION_SOUND="default"

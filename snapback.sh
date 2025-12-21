@@ -1,0 +1,121 @@
+#!/bin/bash
+# SnapBack - pauses browser media, plays sound, focuses your IDE
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+CONFIG_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/snapback/config"
+
+# Defaults
+FOCUS_APPS=("Cursor" "Ghostty")
+FOCUS_DELAY=0.5
+BROWSER="Google Chrome"
+THROTTLE_SECONDS=2
+NOTIFICATION_SOUND="default"
+
+# Load user config if exists
+if [[ -f "$CONFIG_FILE" ]]; then
+  source "$CONFIG_FILE"
+fi
+
+# Resolve notification sound path
+if [[ "$NOTIFICATION_SOUND" == "default" ]]; then
+  NOTIFICATION_SOUND="$SCRIPT_DIR/notification.mp3"
+elif [[ -z "$NOTIFICATION_SOUND" ]]; then
+  NOTIFICATION_SOUND=""
+fi
+
+STATE_FILE="/tmp/snapback_state"
+THROTTLE_FILE="${TMPDIR:-/tmp}/snapback_last"
+RESUME_THROTTLE_FILE="${TMPDIR:-/tmp}/snapback_resume_last"
+
+# Throttle: skip if called within throttle window
+now=$(date +%s)
+if [[ -f "$THROTTLE_FILE" ]]; then
+  last=$(cat "$THROTTLE_FILE" 2>/dev/null || echo 0)
+  if (( now - last <= THROTTLE_SECONDS )); then
+    exit 0
+  fi
+fi
+echo "$now" > "$THROTTLE_FILE"
+
+# Reset resume throttle so resume can run after this
+rm -f "$RESUME_THROTTLE_FILE" 2>/dev/null || true
+
+# Get frontmost app
+frontmost=$(osascript -e 'tell application "System Events" to get name of first application process whose frontmost is true' 2>/dev/null || true)
+
+# If already in last focus app, just play sound and exit
+lastFocusApp="${FOCUS_APPS[${#FOCUS_APPS[@]}-1]}"
+if [[ "$frontmost" == "$lastFocusApp" ]]; then
+  if [[ -n "$NOTIFICATION_SOUND" && -f "$NOTIFICATION_SOUND" ]]; then
+    afplay "$NOTIFICATION_SOUND" &
+  fi
+  exit 0
+fi
+
+# Play sound immediately (async)
+if [[ -n "$NOTIFICATION_SOUND" && -f "$NOTIFICATION_SOUND" ]]; then
+  afplay "$NOTIFICATION_SOUND" &
+fi
+
+# Determine if we should save state (skip workflow apps)
+saveState=""
+skipApps=$(IFS="|"; echo "${FOCUS_APPS[*]}")
+if [[ -z "$frontmost" || "$frontmost" =~ ^($skipApps|SnapBack|snapback|applet)$ ]]; then
+  rm -f "$STATE_FILE" 2>/dev/null || true
+else
+  saveState="$frontmost"
+fi
+
+# Build AppleScript for focus apps
+focusScript=""
+for i in "${!FOCUS_APPS[@]}"; do
+  app="${FOCUS_APPS[$i]}"
+  focusScript+="try
+  tell application \"$app\" to activate
+end try
+"
+  if (( i < ${#FOCUS_APPS[@]} - 1 )); then
+    focusScript+="delay $FOCUS_DELAY
+"
+  fi
+done
+
+# Single osascript: check browser state, pause if playing, save state, focus apps
+osascript <<EOF 2>/dev/null || true
+set browserWasPlaying to false
+
+-- Check and pause browser
+if application "$BROWSER" is running then
+  tell application "$BROWSER"
+    try
+      if (count of windows) > 0 then
+        repeat with w in windows
+          try
+            set t to active tab of w
+            set isPlaying to execute t javascript "(() => { return Array.from(document.querySelectorAll('video,audio')).some(m => !m.paused && !m.ended && m.readyState > 2); })();"
+            if isPlaying is true or isPlaying is "true" then
+              set browserWasPlaying to true
+              execute t javascript "(() => { document.querySelectorAll('video,audio').forEach(m=>{try{m.pause()}catch(e){}}); })();"
+              exit repeat
+            end if
+          end try
+        end repeat
+      end if
+    end try
+  end tell
+end if
+
+-- Save state to file (app:browserWasPlaying)
+set returnApp to "$saveState"
+if returnApp is not "" then
+  if browserWasPlaying then
+    do shell script "printf '%s' " & quoted form of (returnApp & ":true") & " > /tmp/snapback_state"
+  else
+    do shell script "printf '%s' " & quoted form of (returnApp & ":false") & " > /tmp/snapback_state"
+  end if
+end if
+
+-- Focus apps
+$focusScript
+EOF
