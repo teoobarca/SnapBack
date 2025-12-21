@@ -28,19 +28,23 @@ SnapBack v${VERSION} - Attention manager for Claude Code
 Usage: snapback <command>
 
 Commands:
-  install     Interactive installation and configuration
-  status      Check if everything is configured correctly
-  on          Enable Claude Code hooks
-  off         Disable Claude Code hooks (keeps config)
-  update      Update to latest version
-  uninstall   Remove config and hooks completely
-  help        Show this help message
+  install [-y]  Interactive installation and configuration
+  status        Check if everything is configured correctly
+  on            Enable Claude Code hooks
+  off           Disable Claude Code hooks (keeps config)
+  update        Update to latest version
+  uninstall     Remove config and hooks completely
+  help          Show this help message
+
+Options:
+  -y, --yes     Accept defaults without prompts (for install)
 
 Examples:
-  snapback install    # First-time setup
-  snapback status     # Check configuration
-  snapback off        # Temporarily disable
-  snapback update     # Get latest version
+  snapback install      # First-time setup
+  snapback install -y   # Install with defaults
+  snapback status       # Check configuration
+  snapback off          # Temporarily disable
+  snapback update       # Get latest version
 
 More info: https://github.com/teoobarca/snapback
 EOF
@@ -307,9 +311,9 @@ cmd_update() {
 # INSTALL COMMAND
 # ============================================================
 cmd_install() {
-  # Just run the existing install script
+  # Just run the existing install script, passing through arguments
   if [[ -x "$SCRIPT_DIR/install.sh" ]]; then
-    exec "$SCRIPT_DIR/install.sh"
+    exec "$SCRIPT_DIR/install.sh" "$@"
   else
     print_error "install.sh not found in $SCRIPT_DIR"
     exit 1
@@ -321,10 +325,11 @@ cmd_install() {
 # ============================================================
 main() {
   local cmd="${1:-help}"
+  shift || true  # Remove first argument, keep the rest for passing to commands
 
   case "$cmd" in
     install)
-      cmd_install
+      cmd_install "$@"
       ;;
     status)
       cmd_status
