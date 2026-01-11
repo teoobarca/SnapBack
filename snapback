@@ -39,6 +39,7 @@ Commands:
   status        Check if everything is configured correctly
   on            Enable Claude Code hooks
   off           Disable Claude Code hooks (keeps config)
+  mode [MODE]   Set mode: full (sound + focus) or sound (sound only)
   update        Update to latest version
   uninstall     Remove config and hooks completely
   help          Show this help message
@@ -51,6 +52,8 @@ Examples:
   snapback install -y   # Install with defaults
   snapback status       # Check configuration
   snapback off          # Temporarily disable
+  snapback mode sound   # Sound only, no app switching
+  snapback mode full    # Sound + app switching (default)
   snapback update       # Get latest version
 
 More info: https://github.com/teoobarca/snapback
@@ -74,6 +77,12 @@ cmd_status() {
     source "$CONFIG_FILE"
     print_info "  Focus apps: ${FOCUS_APPS[*]}"
     print_info "  Browser: $BROWSER"
+    local current_mode="${MODE:-full}"
+    if [[ "$current_mode" == "sound" ]]; then
+      print_info "  Mode: sound (no app switching)"
+    else
+      print_info "  Mode: full (sound + app switching)"
+    fi
   else
     print_error "Config not found: $CONFIG_FILE"
     all_ok=false
@@ -201,6 +210,62 @@ cmd_off() {
 
   print_success "Hooks disabled"
   print_info "Restart Claude Code to apply changes"
+}
+
+# ============================================================
+# MODE COMMAND
+# ============================================================
+cmd_mode() {
+  local mode="${1:-}"
+
+  # Ensure config exists
+  if [[ ! -f "$CONFIG_FILE" ]]; then
+    print_error "Config not found. Run 'snapback install' first."
+    exit 1
+  fi
+
+  # If no argument, show current mode
+  if [[ -z "$mode" ]]; then
+    source "$CONFIG_FILE"
+    local current_mode="${MODE:-full}"
+    echo ""
+    echo "Current mode: $current_mode"
+    if [[ "$current_mode" == "sound" ]]; then
+      print_info "Sound only - no app switching"
+    else
+      print_info "Full mode - sound + app switching"
+    fi
+    echo ""
+    echo "Change with: snapback mode <full|sound>"
+    echo ""
+    exit 0
+  fi
+
+  # Validate mode
+  if [[ "$mode" != "full" && "$mode" != "sound" ]]; then
+    print_error "Invalid mode: $mode"
+    print_info "Valid modes: full, sound"
+    exit 1
+  fi
+
+  # Update config file
+  if grep -q "^MODE=" "$CONFIG_FILE" 2>/dev/null; then
+    # Replace existing MODE line
+    local tmp=$(mktemp)
+    sed "s/^MODE=.*/MODE=\"$mode\"/" "$CONFIG_FILE" > "$tmp" && mv "$tmp" "$CONFIG_FILE"
+  else
+    # Add MODE to config
+    echo "" >> "$CONFIG_FILE"
+    echo "# Mode: \"full\" (sound + focus apps) or \"sound\" (sound only)" >> "$CONFIG_FILE"
+    echo "MODE=\"$mode\"" >> "$CONFIG_FILE"
+  fi
+
+  print_success "Mode set to: $mode"
+  if [[ "$mode" == "sound" ]]; then
+    print_info "Sound only - no app switching"
+  else
+    print_info "Full mode - sound + app switching"
+  fi
 }
 
 # ============================================================
@@ -356,6 +421,9 @@ main() {
       ;;
     off|disable)
       cmd_off
+      ;;
+    mode)
+      cmd_mode "$@"
       ;;
     update)
       cmd_update

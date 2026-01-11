@@ -11,6 +11,7 @@ FOCUS_DELAY=0.5
 BROWSER="Google Chrome"
 THROTTLE_SECONDS=2
 NOTIFICATION_SOUND="default"
+MODE="full"
 
 # Load user config if exists
 if [[ -f "$CONFIG_FILE" ]]; then
@@ -58,6 +59,11 @@ fi
 # Play sound immediately (async)
 if [[ -n "$NOTIFICATION_SOUND" && -f "$NOTIFICATION_SOUND" ]]; then
   afplay "$NOTIFICATION_SOUND" &
+fi
+
+# If sound-only mode, exit after playing sound
+if [[ "$MODE" == "sound" ]]; then
+  exit 0
 fi
 
 # Determine if we should save state (skip workflow apps)
