@@ -4,3 +4,6 @@
 # Swift build artifacts
 SnapBackApp/.build/
 SnapBackApp/SnapBack.app/
+
+# Git worktrees
+.worktrees/
