@@ -21,6 +21,16 @@ mkdir -p "$APP_BUNDLE/Contents/Resources"
 # Copy executable
 cp "$BUILD_DIR/SnapBackApp" "$APP_BUNDLE/Contents/MacOS/$APP_NAME"
 
+# Build the snapback-poke helper (C, no Swift deps).
+POKE_SRC_DIR="$SCRIPT_DIR/../poke"
+if [[ -d "$POKE_SRC_DIR" ]]; then
+  echo "Building snapback-poke..."
+  ( cd "$POKE_SRC_DIR" && make -s )
+  cp "$POKE_SRC_DIR/build/snapback-poke" "$APP_BUNDLE/Contents/MacOS/snapback-poke"
+  chmod +x "$APP_BUNDLE/Contents/MacOS/snapback-poke"
+  echo "✓ Bundled snapback-poke"
+fi
+
 # Create Info.plist
 SNAPBACK_CLI_PATH="${SNAPBACK_CLI_PATH:-}"
 
@@ -38,9 +48,9 @@ cat > "$APP_BUNDLE/Contents/Info.plist" << 'EOF'
     <key>CFBundleDisplayName</key>
     <string>SnapBack</string>
     <key>CFBundleVersion</key>
-    <string>1.2</string>
+    <string>1.3.0</string>
     <key>CFBundleShortVersionString</key>
-    <string>1.2</string>
+    <string>1.3.0</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>LSMinimumSystemVersion</key>
