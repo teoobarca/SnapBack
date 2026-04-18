@@ -261,6 +261,28 @@ else
 fi
 
 # ============================================================
+# POKE HELPER
+# ============================================================
+
+# Build and install the poke helper.
+if [[ -d "$SCRIPT_DIR/poke" ]]; then
+  if command -v make >/dev/null 2>&1 && command -v clang >/dev/null 2>&1; then
+    ( cd "$SCRIPT_DIR/poke" && make -s ) || {
+      echo "warning: snapback-poke failed to build; bridge feature will be inert" >&2
+    }
+    if [[ -x "$SCRIPT_DIR/poke/build/snapback-poke" ]]; then
+      if [[ -w /usr/local/bin ]]; then
+        ln -sf "$SCRIPT_DIR/poke/build/snapback-poke" /usr/local/bin/snapback-poke
+      else
+        sudo ln -sf "$SCRIPT_DIR/poke/build/snapback-poke" /usr/local/bin/snapback-poke
+      fi
+    fi
+  else
+    echo "warning: clang+make not available; snapback-poke not built" >&2
+  fi
+fi
+
+# ============================================================
 # DONE
 # ============================================================
 
