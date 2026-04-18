@@ -17,6 +17,10 @@ public final class MobilePeer {
     private var reconnectAttempt = 0
     private var buffer = Data()
     private var stopRequested = false
+    // Replay protection on the receive path. Sized for a long session at
+    // ~30 s heartbeat cadence; 1024 is vastly more than any real phone ever
+    // produces in the 10 min TTL window.
+    private let nonceCache = NonceCache(capacity: 1024, ttlSeconds: 600)
 
     public init(host: String, port: UInt16, secret: Data, peerName: String) {
         self.host = host
@@ -140,6 +144,10 @@ public final class MobilePeer {
         guard let (msg, hmac) = try? MessageCodec.decodeLine(line + "\n") else { return }
         guard MessageCodec.verify(message: msg, direction: .serverToClient,
                                   hmacHex: hmac, secret: secret) else { return }
+        // Replay protection: reject any nonce we've already accepted within TTL.
+        // Clock drift beyond the codec's ±30 s window was already rejected above.
+        let now = Date().timeIntervalSince1970
+        guard nonceCache.tryAdd(msg.nonceHex, at: now) else { return }
         if state != .connected { state = .connected }
         onMessage?(msg)
     }

@@ -78,6 +78,13 @@ public final class BridgeServer {
     public func start() throws {
         unlink(socketPath)  // remove stale socket, ignore errors
 
+        // Restrict socket to the owning user. The socket file inherits the
+        // umask, so we shrink umask around the bind(). Any local user could
+        // otherwise connect() and inject attention/resume events — harmless
+        // in isolation but trivially abusable.
+        let previousMask = umask(0o177)
+        defer { umask(previousMask) }
+
         let fd = socket(AF_UNIX, SOCK_STREAM, 0)
         if fd < 0 { throw BridgeServerError.bindFailed(errno) }
 

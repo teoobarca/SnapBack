@@ -36,7 +36,7 @@ dir  \x00  v  \x00  type  \x00  ts  \x00  nonce  \x00  payload_bytes
 - `v`, `ts`: base-10 ASCII, no leading zeros.
 - `type`:    lowercase ASCII, from the set above.
 - `nonce`:   32 lowercase hex chars exactly.
-- `payload_bytes`: canonical JSON of the `payload` object: sorted keys, UTF-8, no whitespace, `{}` for empty. Strings escape only `\\`, `\"`, `\n`, `\r`, `\t`, `\b`, `\f`, and control chars as `\uXXXX`.
+- `payload_bytes`: canonical JSON of the `payload` object: sorted keys, UTF-8, no whitespace, `{}` for empty. Strings escape only `\\`, `\"`, `\n`, `\r`, `\t`, `\b`, `\f`, and control chars as `\uXXXX`. Integers MUST be serialized without a decimal point (`5`, never `5.0`); booleans are `true`/`false` and never compare equal to integers.
 
 Take `HMAC-SHA256(secret, domain)` and emit as 64 lowercase hex chars as `hmac`.
 
