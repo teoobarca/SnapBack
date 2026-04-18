@@ -92,30 +92,39 @@ config_set() {
   mkdir -p "$(dirname "$SNAPBACK_CONFIG_FILE")"
   [[ -f "$SNAPBACK_CONFIG_FILE" ]] || : > "$SNAPBACK_CONFIG_FILE"
 
-  local lockfile="${SNAPBACK_CONFIG_FILE}.lock"
-  (
-    exec 9> "$lockfile"
-    flock -x 9
-    if [[ "$ktype" == "scalar" ]]; then
-      local escaped new_line
-      escaped="$(_snapback_escape_value "$value")"
-      new_line="${key}=\"${escaped}\""
-      if grep -q "^${key}=" "$SNAPBACK_CONFIG_FILE"; then
-        _snapback_rewrite_scalar "$key" "$new_line"
-      else
-        printf '\n# Added by snapback config set\n%s\n' "$new_line" >> "$SNAPBACK_CONFIG_FILE"
-      fi
-    else
-      if [[ ! "$value" =~ ^\(.*\)$ ]]; then
-        echo "config_set: array value must be (\"a\" \"b\" ...)" >&2
-        exit 2
-      fi
-      local new_line="${key}=${value}"
-      if grep -q "^${key}=" "$SNAPBACK_CONFIG_FILE"; then
-        _snapback_rewrite_scalar "$key" "$new_line"
-      else
-        printf '\n# Added by snapback config set\n%s\n' "$new_line" >> "$SNAPBACK_CONFIG_FILE"
-      fi
+  local lockdir="${SNAPBACK_CONFIG_FILE}.lock.d"
+  local waited=0
+  while ! mkdir "$lockdir" 2>/dev/null; do
+    if (( waited >= 500 )); then
+      echo "config_set: lock timeout" >&2
+      return 4
     fi
-  )
+    sleep 0.01
+    waited=$((waited + 1))
+  done
+
+  if [[ "$ktype" == "scalar" ]]; then
+    local escaped new_line
+    escaped="$(_snapback_escape_value "$value")"
+    new_line="${key}=\"${escaped}\""
+    if grep -q "^${key}=" "$SNAPBACK_CONFIG_FILE"; then
+      _snapback_rewrite_scalar "$key" "$new_line"
+    else
+      printf '\n# Added by snapback config set\n%s\n' "$new_line" >> "$SNAPBACK_CONFIG_FILE"
+    fi
+  else
+    if [[ ! "$value" =~ ^\(.*\)$ ]]; then
+      echo "config_set: array value must be (\"a\" \"b\" ...)" >&2
+      rmdir "$lockdir" 2>/dev/null
+      return 2
+    fi
+    local new_line="${key}=${value}"
+    if grep -q "^${key}=" "$SNAPBACK_CONFIG_FILE"; then
+      _snapback_rewrite_scalar "$key" "$new_line"
+    else
+      printf '\n# Added by snapback config set\n%s\n' "$new_line" >> "$SNAPBACK_CONFIG_FILE"
+    fi
+  fi
+
+  rmdir "$lockdir" 2>/dev/null
 }
