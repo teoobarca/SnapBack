@@ -2,7 +2,7 @@
 # SnapBack CLI - Attention manager for Claude Code
 set -euo pipefail
 
-VERSION="1.2.0"
+VERSION="1.3.0"
 # Resolve symlinks to get the actual script directory
 SOURCE="$0"
 while [[ -L "$SOURCE" ]]; do
@@ -60,6 +60,7 @@ Commands:
   config <sub>  get KEY | set KEY VAL [--allow-new] | show [--json] | path
   test          Play a notification preview
   app           Launch the menu-bar app (if installed)
+  mobile <sub>  pair | unpair | status | enable | disable | logs
   update        Update to latest version (and rebuild menu-bar app if installed)
   uninstall     Remove config, hooks, and menu-bar app
   help          Show this help message
@@ -334,6 +335,12 @@ cmd_uninstall() {
     print_success "Removed config: $CONFIG_DIR"
   else
     print_info "Config not found (already removed)"
+  fi
+
+  # Remove Keychain token (1.3.0+ bridge pair token)
+  if command -v security >/dev/null 2>&1; then
+    security delete-generic-password -s com.snapback.mobile -a pair-token >/dev/null 2>&1 || true
+    print_success "Removed Keychain entry (if present)"
   fi
 
   # Remove state files
@@ -735,6 +742,74 @@ cmd_install() {
 }
 
 # ============================================================
+# MOBILE COMMAND (1.3.0 bridge)
+# ============================================================
+cmd_mobile() {
+  local sub="${1:-}"
+  shift || true
+  case "$sub" in
+    enable)
+      config_set MOBILE_ENABLED true
+      print_success "MOBILE_ENABLED=true"
+      ;;
+    disable)
+      config_set MOBILE_ENABLED false
+      print_success "MOBILE_ENABLED=false"
+      ;;
+    status)
+      local enabled
+      enabled=$(config_get MOBILE_ENABLED 2>/dev/null || echo "false")
+      echo ""
+      echo "Mobile bridge"
+      echo "─────────────"
+      echo "  enabled: $enabled"
+      echo "  socket:  ${SNAPBACK_BRIDGE_SOCKET:-unset}"
+      if [[ -S "${SNAPBACK_BRIDGE_SOCKET:-}" ]]; then
+        print_success "bridge socket is live"
+      else
+        print_warning "bridge socket not present (menu-bar app running?)"
+      fi
+      local dname
+      dname=$(config_get MOBILE_DEVICE_NAME 2>/dev/null || echo "")
+      if [[ -n "$dname" ]]; then
+        print_info "  paired peer: $dname"
+      else
+        print_info "  no paired peer"
+      fi
+      echo ""
+      ;;
+    pair)
+      cmd_app
+      print_info "Opened SnapBackApp; use 'Pair mobile…' in the menu-bar popover."
+      ;;
+    unpair)
+      if command -v security >/dev/null 2>&1; then
+        security delete-generic-password -s com.snapback.mobile -a pair-token >/dev/null 2>&1 || true
+      fi
+      config_set MOBILE_DEVICE_NAME "" || true
+      config_set MOBILE_ENABLED false || true
+      print_success "Unpaired (Keychain token cleared)."
+      ;;
+    logs)
+      local log="$HOME/Library/Logs/SnapBack/bridge.log"
+      if [[ -f "$log" ]]; then
+        tail -n 200 "$log"
+      else
+        print_warning "no log file yet: $log"
+      fi
+      ;;
+    "")
+      print_error "Usage: snapback mobile <pair|unpair|status|enable|disable|logs>"
+      exit 2
+      ;;
+    *)
+      print_error "Unknown mobile subcommand: $sub"
+      exit 2
+      ;;
+  esac
+}
+
+# ============================================================
 # MAIN
 # ============================================================
 main() {
@@ -774,6 +849,9 @@ main() {
       ;;
     app)
       cmd_app
+      ;;
+    mobile)
+      cmd_mobile "$@"
       ;;
     update)
       cmd_update

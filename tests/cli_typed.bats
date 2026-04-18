@@ -88,3 +88,21 @@ teardown() {
   [[ "$output" == *'"Visual Studio Code"'* ]]
   [[ "$output" == *'"iTerm 2"'* ]]
 }
+
+@test "snapback mobile status prints basic info" {
+  run snapback mobile status
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"Mobile bridge"* ]]
+  [[ "$output" == *"enabled:"* ]]
+}
+
+@test "snapback mobile enable sets MOBILE_ENABLED=true" {
+  snapback mobile enable
+  [ "$(snapback config get MOBILE_ENABLED)" = "true" ]
+}
+
+@test "snapback mobile disable sets MOBILE_ENABLED=false" {
+  snapback mobile enable
+  snapback mobile disable
+  [ "$(snapback config get MOBILE_ENABLED)" = "false" ]
+}
