@@ -178,6 +178,8 @@ public enum MessageCodec {
     public static func sign(message: ProtocolMessage,
                             direction: ProtocolDirection,
                             secret: Data) -> String {
+        precondition(isValidNonceHex(message.nonceHex),
+                     "nonceHex must be exactly 32 lowercase hex chars")
         let domain = signingDomain(for: message, direction: direction)
         let key = SymmetricKey(data: secret)
         let mac = HMAC<SHA256>.authenticationCode(for: domain, using: key)
@@ -191,11 +193,11 @@ public enum MessageCodec {
         guard let expected = Data(hex: hmacHex) else { return false }
         let domain = signingDomain(for: message, direction: direction)
         let key = SymmetricKey(data: secret)
-        let actual = Data(HMAC<SHA256>.authenticationCode(for: domain, using: key))
-        guard expected.count == actual.count else { return false }
-        var diff: UInt8 = 0
-        for i in 0..<actual.count { diff |= expected[i] ^ actual[i] }
-        return diff == 0
+        return HMAC<SHA256>.isValidAuthenticationCode(
+            expected,
+            authenticating: domain,
+            using: key
+        )
     }
 }
 
@@ -207,6 +209,23 @@ public enum MessageCodecError: Error {
     case unknownType(String)
     case invalidNonce
     case invalidPayload
+    case invalidVersion(Int)
+}
+
+// MARK: - Nonce validation
+
+extension MessageCodec {
+    /// Validates nonceHex per the wire format (exactly 32 lowercase hex chars).
+    public static func isValidNonceHex(_ s: String) -> Bool {
+        guard s.count == 32 else { return false }
+        for c in s.unicodeScalars {
+            switch c {
+            case "0"..."9", "a"..."f": continue
+            default: return false
+            }
+        }
+        return true
+    }
 }
 
 // MARK: - Wire encode/decode
@@ -216,6 +235,8 @@ extension MessageCodec {
     public static func encodeSignedLine(_ message: ProtocolMessage,
                                         direction: ProtocolDirection,
                                         secret: Data) throws -> String {
+        precondition(isValidNonceHex(message.nonceHex),
+                     "nonceHex must be exactly 32 lowercase hex chars")
         let hmac = sign(message: message, direction: direction, secret: secret)
         var body: [(String, JSONValue)] = [
             ("hmac", .string(hmac)),
@@ -240,15 +261,16 @@ extension MessageCodec {
               let obj = any as? [String: Any] else {
             throw MessageCodecError.invalidJSON
         }
-        guard let v = obj["v"] as? Int else { throw MessageCodecError.missingField("v") }
+        guard let vNum = obj["v"] as? NSNumber else { throw MessageCodecError.missingField("v") }
+        let v = vNum.intValue
+        guard v == 1 else { throw MessageCodecError.invalidVersion(v) }
         guard let typeString = obj["type"] as? String else { throw MessageCodecError.missingField("type") }
         guard let type = ProtocolMessageType(rawValue: typeString) else {
             throw MessageCodecError.unknownType(typeString)
         }
-        guard let ts = obj["ts"] as? Int64 ?? (obj["ts"] as? Int).map(Int64.init) else {
-            throw MessageCodecError.missingField("ts")
-        }
-        guard let nonce = obj["nonce"] as? String, nonce.count == 32 else {
+        guard let tsNum = obj["ts"] as? NSNumber else { throw MessageCodecError.missingField("ts") }
+        let ts = tsNum.int64Value
+        guard let nonce = obj["nonce"] as? String, isValidNonceHex(nonce) else {
             throw MessageCodecError.invalidNonce
         }
         guard let hmac = obj["hmac"] as? String else { throw MessageCodecError.missingField("hmac") }
@@ -301,18 +323,30 @@ extension JSONValue {
 // MARK: - Data hex helpers
 
 extension Data {
+    /// Parses a string of exactly 2N lowercase hex characters. Rejects whitespace,
+    /// uppercase, or any non-hex character. Returns nil on malformed input.
     init?(hex: String) {
-        let clean = hex.unicodeScalars.filter { !$0.properties.isWhitespace }
-        guard clean.count % 2 == 0 else { return nil }
-        var buf = Data(capacity: clean.count / 2)
-        var i = clean.startIndex
-        while i < clean.endIndex {
-            let hi = clean[i]
-            let lo = clean[clean.index(after: i)]
-            guard let byte = UInt8(String(hi) + String(lo), radix: 16) else { return nil }
-            buf.append(byte)
-            i = clean.index(i, offsetBy: 2)
+        guard hex.count % 2 == 0 else { return nil }
+        var buf = Data(capacity: hex.count / 2)
+        var idx = hex.startIndex
+        while idx < hex.endIndex {
+            let hi = hex[idx]
+            let lo = hex[hex.index(after: idx)]
+            guard
+                let hiVal = Data.hexNibble(hi),
+                let loVal = Data.hexNibble(lo)
+            else { return nil }
+            buf.append(hiVal << 4 | loVal)
+            idx = hex.index(idx, offsetBy: 2)
         }
         self = buf
+    }
+
+    private static func hexNibble(_ c: Character) -> UInt8? {
+        switch c {
+        case "0"..."9": return UInt8(c.asciiValue! - 0x30)
+        case "a"..."f": return UInt8(c.asciiValue! - 0x57)  // 'a' = 0x61, want 10
+        default: return nil
+        }
     }
 }

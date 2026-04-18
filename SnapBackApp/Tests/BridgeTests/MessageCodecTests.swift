@@ -163,4 +163,22 @@ final class WireEncodeDecodeTests: XCTestCase {
                    String(repeating: "0", count: 32) + "\",\"payload\":{},\"hmac\":\"x\"}\n"
         XCTAssertThrowsError(try MessageCodec.decodeLine(json))
     }
+
+    func testDecodeRejectsUppercaseNonce() {
+        // Build a valid-shape message but put uppercase hex in the nonce.
+        let badNonce = String(repeating: "A", count: 32)
+        let json = "{\"v\":1,\"type\":\"resume\",\"ts\":1,\"nonce\":\"\(badNonce)\",\"payload\":{},\"hmac\":\"\(String(repeating: "0", count: 64))\"}\n"
+        XCTAssertThrowsError(try MessageCodec.decodeLine(json))
+    }
+
+    func testDecodeRejectsShortNonce() {
+        let badNonce = String(repeating: "a", count: 31)
+        let json = "{\"v\":1,\"type\":\"resume\",\"ts\":1,\"nonce\":\"\(badNonce)\",\"payload\":{},\"hmac\":\"\(String(repeating: "0", count: 64))\"}\n"
+        XCTAssertThrowsError(try MessageCodec.decodeLine(json))
+    }
+
+    func testDecodeRejectsUnknownVersion() {
+        let json = "{\"v\":2,\"type\":\"resume\",\"ts\":1,\"nonce\":\"\(String(repeating: "0", count: 32))\",\"payload\":{},\"hmac\":\"\(String(repeating: "0", count: 64))\"}\n"
+        XCTAssertThrowsError(try MessageCodec.decodeLine(json))
+    }
 }
