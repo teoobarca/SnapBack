@@ -51,3 +51,35 @@ final class CanonicalJSONTests: XCTestCase {
         XCTAssertEqual(String(data: CanonicalJSON.encode(.null),        encoding: .utf8), "null")
     }
 }
+
+final class SigningDomainTests: XCTestCase {
+    func testDomainHasDirectionFirstAndNullSeparators() {
+        let msg = ProtocolMessage(
+            version: 1,
+            type: .attention,
+            timestamp: 1_734_556_677,
+            nonceHex: String(repeating: "0", count: 32),
+            payload: [("hook", .string("Stop"))]
+        )
+        let domain = MessageCodec.signingDomain(for: msg, direction: .clientToServer)
+        let expected: [UInt8] = Array(
+            ("c2s\u{00}1\u{00}attention\u{00}1734556677\u{00}" +
+             String(repeating: "0", count: 32) + "\u{00}" +
+             "{\"hook\":\"Stop\"}").utf8
+        )
+        XCTAssertEqual(Array(domain), expected)
+    }
+
+    func testEmptyPayloadSerializesAsOpenClose() {
+        let msg = ProtocolMessage(
+            version: 1,
+            type: .resume,
+            timestamp: 100,
+            nonceHex: String(repeating: "1", count: 32),
+            payload: []
+        )
+        let domain = MessageCodec.signingDomain(for: msg, direction: .clientToServer)
+        let domainStr = String(data: domain, encoding: .utf8)
+        XCTAssertEqual(domainStr?.hasSuffix("\u{00}{}"), true)
+    }
+}
