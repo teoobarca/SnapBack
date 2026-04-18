@@ -272,9 +272,11 @@ if [[ -d "$SCRIPT_DIR/poke" ]]; then
     }
     if [[ -x "$SCRIPT_DIR/poke/build/snapback-poke" ]]; then
       if [[ -w /usr/local/bin ]]; then
-        ln -sf "$SCRIPT_DIR/poke/build/snapback-poke" /usr/local/bin/snapback-poke
+        ln -sf "$SCRIPT_DIR/poke/build/snapback-poke" /usr/local/bin/snapback-poke \
+          || echo "warning: failed to symlink snapback-poke to /usr/local/bin; bridge feature will be inert" >&2
       else
-        sudo ln -sf "$SCRIPT_DIR/poke/build/snapback-poke" /usr/local/bin/snapback-poke
+        sudo ln -sf "$SCRIPT_DIR/poke/build/snapback-poke" /usr/local/bin/snapback-poke \
+          || echo "warning: failed to symlink snapback-poke to /usr/local/bin; bridge feature will be inert" >&2
       fi
     fi
   else
