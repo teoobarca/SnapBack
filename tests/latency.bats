@@ -49,3 +49,38 @@ _time_ms() {
   echo "ms=$ms"
   [ "$ms" -le 10 ]
 }
+
+@test "snapback.sh returns in <=20 ms when bridge is accepting" {
+  # macOS AF_UNIX path limit is 104 chars; mktemp dirs are too long for a socket.
+  # Use a short fixed path in /tmp, unique per-PID, then restore SNAPBACK_BRIDGE_SOCKET.
+  local SHORT_SOCK="/tmp/sb-test-$$.sock"
+  export SNAPBACK_BRIDGE_SOCKET="$SHORT_SOCK"
+  rm -f "$SHORT_SOCK"
+  python3 - <<PY &
+import socket, os
+s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+s.bind("$SHORT_SOCK")
+s.listen(8)
+try:
+    while True:
+        c, _ = s.accept()
+        # drain and close so the client's shutdown/close returns quickly
+        c.close()
+except Exception:
+    pass
+PY
+  LISTENER_PID=$!
+  for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do
+    [ -S "$SHORT_SOCK" ] && break
+    sleep 0.1
+  done
+  [ -S "$SHORT_SOCK" ]
+  "$BATS_TEST_DIRNAME/../snapback.sh" >/dev/null 2>&1 || true  # warm
+  local ms
+  ms=$(_time_ms "$BATS_TEST_DIRNAME/../snapback.sh")
+  kill "$LISTENER_PID" 2>/dev/null || true
+  wait "$LISTENER_PID" 2>/dev/null || true
+  rm -f "$SHORT_SOCK"
+  echo "ms=$ms"
+  [ "$ms" -le 20 ]
+}
