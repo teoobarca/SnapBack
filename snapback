@@ -13,6 +13,20 @@ done
 SCRIPT_DIR="$(cd "$(dirname "$SOURCE")" && pwd)"
 CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/snapback"
 CONFIG_FILE="$CONFIG_DIR/config"
+
+# Load shared config library.  Priority: repo-adjacent, then system share path.
+if [[ -f "$SCRIPT_DIR/snapback-lib.sh" ]]; then
+  # shellcheck source=snapback-lib.sh
+  source "$SCRIPT_DIR/snapback-lib.sh"
+elif [[ -f "/usr/local/share/snapback/snapback-lib.sh" ]]; then
+  source "/usr/local/share/snapback/snapback-lib.sh"
+else
+  echo "error: snapback-lib.sh not found" >&2
+  exit 1
+fi
+
+# Align lib's config path with the CLI's.
+SNAPBACK_CONFIG_FILE="$CONFIG_FILE"
 CLAUDE_SETTINGS="$HOME/.claude/settings.json"
 
 # Colors
@@ -40,6 +54,7 @@ Commands:
   on            Enable Claude Code hooks
   off           Disable Claude Code hooks (keeps config)
   mode [MODE]   Set mode: full (sound + focus) or sound (sound only)
+  config <sub>  Get/set config: get KEY | set KEY VAL | show [--json] | path
   app           Launch menu bar app for GUI configuration
   update        Update to latest version
   uninstall     Remove config and hooks completely
@@ -249,17 +264,10 @@ cmd_mode() {
     exit 1
   fi
 
-  # Update config file
-  if grep -q "^MODE=" "$CONFIG_FILE" 2>/dev/null; then
-    # Replace existing MODE line
-    local tmp=$(mktemp)
-    sed "s/^MODE=.*/MODE=\"$mode\"/" "$CONFIG_FILE" > "$tmp" && mv "$tmp" "$CONFIG_FILE"
-  else
-    # Add MODE to config
-    echo "" >> "$CONFIG_FILE"
-    echo "# Mode: \"full\" (sound + focus apps) or \"sound\" (sound only)" >> "$CONFIG_FILE"
-    echo "MODE=\"$mode\"" >> "$CONFIG_FILE"
-  fi
+  config_set MODE "$mode" --allow-new || {
+    print_error "Failed to write config"
+    exit 1
+  }
 
   print_success "Mode set to: $mode"
   if [[ "$mode" == "sound" ]]; then
@@ -410,6 +418,63 @@ cmd_app() {
 }
 
 # ============================================================
+# CONFIG COMMAND
+# ============================================================
+cmd_config() {
+  local sub="${1:-}"
+  shift || true
+  case "$sub" in
+    get)
+      [[ $# -ge 1 ]] || { print_error "Usage: snapback config get KEY"; exit 2; }
+      config_get "$1" || { print_error "Key not set: $1"; exit 1; }
+      ;;
+    set)
+      [[ $# -ge 2 ]] || { print_error "Usage: snapback config set KEY VALUE [--allow-new]"; exit 2; }
+      config_set "$@" || exit $?
+      ;;
+    show)
+      local json=0
+      [[ "${1:-}" == "--json" ]] && json=1
+      if (( json )); then
+        local first=1
+        echo "{"
+        while read -r k _; do
+          local v
+          if v=$(config_get "$k" 2>/dev/null); then
+            (( first )) || echo ","
+            first=0
+            # Shell-escape for JSON: minimal (no \n in values)
+            local esc="${v//\\/\\\\}"
+            esc="${esc//\"/\\\"}"
+            printf '  "%s": "%s"' "$k" "$esc"
+          fi
+        done < <(_snapback_known_keys)
+        echo ""
+        echo "}"
+      else
+        while read -r k _; do
+          local v
+          if v=$(config_get "$k" 2>/dev/null); then
+            printf '%s=%s\n' "$k" "$v"
+          fi
+        done < <(_snapback_known_keys)
+      fi
+      ;;
+    path)
+      printf '%s\n' "$CONFIG_FILE"
+      ;;
+    "")
+      print_error "Usage: snapback config <get|set|show|path> ..."
+      exit 2
+      ;;
+    *)
+      print_error "Unknown config subcommand: $sub"
+      exit 2
+      ;;
+  esac
+}
+
+# ============================================================
 # INSTALL COMMAND
 # ============================================================
 cmd_install() {
@@ -444,6 +509,9 @@ main() {
       ;;
     mode)
       cmd_mode "$@"
+      ;;
+    config)
+      cmd_config "$@"
       ;;
     app)
       cmd_app
