@@ -384,9 +384,14 @@ cmd_update() {
       cp "$tmp_dir/snapback" "$install_dir/"
       cp "$tmp_dir/snapback.sh" "$install_dir/"
       cp "$tmp_dir/snapback-resume.sh" "$install_dir/"
+      cp "$tmp_dir/snapback-lib.sh" "$install_dir/"
       cp "$tmp_dir/install.sh" "$install_dir/"
       cp "$tmp_dir/notification.mp3" "$install_dir/" 2>/dev/null || true
-      chmod +x "$install_dir/snapback" "$install_dir/snapback.sh" "$install_dir/snapback-resume.sh" "$install_dir/install.sh"
+      rm -rf "$install_dir/SnapBackApp"
+      cp -R "$tmp_dir/SnapBackApp" "$install_dir/"
+      chmod +x "$install_dir/snapback" "$install_dir/snapback.sh" \
+               "$install_dir/snapback-resume.sh" "$install_dir/install.sh" \
+               "$install_dir/SnapBackApp/build-app.sh"
       rm -rf "$tmp_dir"
       print_success "Updated to latest version"
     else
@@ -394,6 +399,51 @@ cmd_update() {
       print_error "Download failed"
       exit 1
     fi
+  fi
+
+  # Menu-bar app maintenance
+  local app_installed="/Applications/SnapBack.app"
+  if [[ -d "$install_dir/SnapBackApp" ]] && command -v swift &>/dev/null; then
+    if [[ -d "$app_installed" ]]; then
+      print_info "Rebuilding menu-bar app..."
+      (
+        cd "$install_dir/SnapBackApp"
+        for p in /usr/local/bin/snapback /opt/homebrew/bin/snapback "$HOME/.local/bin/snapback"; do
+          [[ -x "$p" ]] && export SNAPBACK_CLI_PATH="$p" && break
+        done
+        ./build-app.sh
+      )
+      if [[ -w /Applications ]]; then
+        rm -rf "$app_installed"
+        cp -R "$install_dir/SnapBackApp/SnapBack.app" "$app_installed"
+      else
+        sudo rm -rf "$app_installed"
+        sudo cp -R "$install_dir/SnapBackApp/SnapBack.app" "$app_installed"
+      fi
+      print_success "Menu-bar app rebuilt"
+    else
+      # Offer to install now, respecting non-TTY
+      if [[ -t 0 ]]; then
+        read -p "Menu-bar app not installed. Install now? [y/N]: " yn
+        if [[ "$yn" =~ ^[Yy]$ ]]; then
+          (
+            cd "$install_dir/SnapBackApp"
+            for p in /usr/local/bin/snapback /opt/homebrew/bin/snapback "$HOME/.local/bin/snapback"; do
+              [[ -x "$p" ]] && export SNAPBACK_CLI_PATH="$p" && break
+            done
+            ./build-app.sh
+          )
+          if [[ -w /Applications ]]; then
+            cp -R "$install_dir/SnapBackApp/SnapBack.app" "$app_installed"
+          else
+            sudo cp -R "$install_dir/SnapBackApp/SnapBack.app" "$app_installed"
+          fi
+          print_success "Menu-bar app installed"
+        fi
+      fi
+    fi
+  elif [[ -d "$install_dir/SnapBackApp" ]]; then
+    print_info "Menu-bar app present but Swift not available — install Xcode Command Line Tools to build."
   fi
 
   echo ""
