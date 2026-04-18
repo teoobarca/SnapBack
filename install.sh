@@ -6,6 +6,15 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/snapback"
 CLAUDE_SETTINGS="$HOME/.claude/settings.json"
 
+# Load shared config library
+if [[ -f "$SCRIPT_DIR/snapback-lib.sh" ]]; then
+  source "$SCRIPT_DIR/snapback-lib.sh"
+else
+  echo "error: snapback-lib.sh not found next to install.sh" >&2
+  exit 1
+fi
+SNAPBACK_CONFIG_FILE="$CONFIG_DIR/config"
+
 # Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -107,29 +116,41 @@ if [[ "$skip_config" == "false" ]]; then
   throttle="2"
   notification_sound="default"
 
-  # Create config
+  # Create config using config_set
   mkdir -p "$CONFIG_DIR"
+  : > "$CONFIG_DIR/config"
 
-  focus_apps_str="("
+  # Build FOCUS_APPS bash-array literal
+  focus_apps_literal='('
   for app in "${FOCUS_APPS_ARR[@]}"; do
-    app=$(echo "$app" | xargs)
-    focus_apps_str+="\"$app\" "
+    app="$(echo "$app" | xargs)"  # trim whitespace
+    # Escape the same way config_set does (backslash, dollar, backtick, dquote)
+    esc="${app//\\/\\\\}"
+    esc="${esc//\$/\\\$}"
+    esc="${esc//\`/\\\`}"
+    esc="${esc//\"/\\\"}"
+    focus_apps_literal+="\"$esc\" "
   done
-  focus_apps_str="${focus_apps_str% })"
+  focus_apps_literal="${focus_apps_literal% })"
 
-  cat > "$CONFIG_DIR/config" <<EOF
-# SnapBack Configuration
-FOCUS_APPS=$focus_apps_str
-FOCUS_DELAY=$focus_delay
-BROWSER="$browser"
-SEEK_BACK_SECONDS=$seek_back
-THROTTLE_SECONDS=$throttle
-NOTIFICATION_SOUND="$notification_sound"
-EOF
+  config_set FOCUS_APPS "$focus_apps_literal" --allow-new
+  config_set FOCUS_DELAY "$focus_delay" --allow-new
+  config_set BROWSER "$browser" --allow-new
+  config_set SEEK_BACK_SECONDS "$seek_back" --allow-new
+  config_set THROTTLE_SECONDS "$throttle" --allow-new
+  config_set NOTIFICATION_SOUND "$notification_sound" --allow-new
+  config_set VOLUME "1.0" --allow-new
+  config_set MODE "full" --allow-new
 
   echo ""
   print_success "Config saved to $CONFIG_DIR/config"
   print_info "Edit this file for advanced settings (delays, sounds, etc.)"
+fi
+
+# Migrate: ensure all known keys exist in an existing config.
+if [[ "$skip_config" == "true" ]]; then
+  config_get VOLUME >/dev/null || config_set VOLUME "1.0" --allow-new
+  config_get MODE >/dev/null || config_set MODE "full" --allow-new
 fi
 
 # ============================================================
@@ -154,24 +175,17 @@ setup_hooks() {
     return 1
   fi
 
-  if [[ -f "$CLAUDE_SETTINGS" ]]; then
-    tmp=$(mktemp)
-    jq --arg snapback "$SCRIPT_DIR/snapback.sh" --arg resume "$SCRIPT_DIR/snapback-resume.sh" '
-      .hooks.PermissionRequest = [{matcher: "*", hooks: [{type: "command", command: $snapback}]}] |
-      .hooks.Stop = [{hooks: [{type: "command", command: $snapback}]}] |
-      .hooks.PostToolUse = ((.hooks.PostToolUse // []) | map(select(.matcher != "Edit|Write|Bash"))) + [{matcher: "Edit|Write|Bash", hooks: [{type: "command", command: $resume}]}] |
-      .hooks.UserPromptSubmit = [{hooks: [{type: "command", command: $resume}]}]
-    ' "$CLAUDE_SETTINGS" > "$tmp" && mv "$tmp" "$CLAUDE_SETTINGS"
-  else
-    jq -n --arg snapback "$SCRIPT_DIR/snapback.sh" --arg resume "$SCRIPT_DIR/snapback-resume.sh" '{
-      hooks: {
-        PermissionRequest: [{matcher: "*", hooks: [{type: "command", command: $snapback}]}],
-        Stop: [{hooks: [{type: "command", command: $snapback}]}],
-        PostToolUse: [{matcher: "Edit|Write|Bash", hooks: [{type: "command", command: $resume}]}],
-        UserPromptSubmit: [{hooks: [{type: "command", command: $resume}]}]
-      }
-    }' > "$CLAUDE_SETTINGS"
+  if [[ ! -f "$CLAUDE_SETTINGS" ]]; then
+    echo '{}' > "$CLAUDE_SETTINGS"
   fi
+
+  tmp=$(mktemp)
+  jq --arg snapback "$SCRIPT_DIR/snapback.sh" --arg resume "$SCRIPT_DIR/snapback-resume.sh" '
+    .hooks.PermissionRequest = ((.hooks.PermissionRequest // []) | map(select(.hooks[0].command | contains("snapback") | not))) + [{"matcher": "*", "hooks": [{"type": "command", "command": $snapback}]}] |
+    .hooks.Stop = ((.hooks.Stop // []) | map(select(.hooks[0].command | contains("snapback") | not))) + [{"hooks": [{"type": "command", "command": $snapback}]}] |
+    .hooks.PostToolUse = ((.hooks.PostToolUse // []) | map(select(.hooks[0].command | contains("snapback") | not))) + [{"matcher": "Edit|Write|Bash", "hooks": [{"type": "command", "command": $resume}]}] |
+    .hooks.UserPromptSubmit = ((.hooks.UserPromptSubmit // []) | map(select(.hooks[0].command | contains("snapback") | not))) + [{"hooks": [{"type": "command", "command": $resume}]}]
+  ' "$CLAUDE_SETTINGS" > "$tmp" && mv "$tmp" "$CLAUDE_SETTINGS"
   return 0
 }
 
@@ -188,13 +202,11 @@ fi
 echo ""
 print_info "Testing macOS permissions..."
 
-# Source config to get BROWSER
-[[ -f "$CONFIG_DIR/config" ]] && source "$CONFIG_DIR/config"
-
-if "$SCRIPT_DIR/snapback.sh" 2>/dev/null; then
+# Quiet probe: just try System Events access. No app focus, no sound, no state.
+if osascript -e 'tell application "System Events" to get name of first application process whose frontmost is true' &>/dev/null; then
   print_success "Permissions OK"
 else
-  print_warning "You may need to grant permissions in System Settings → Privacy & Security"
+  print_warning "Grant permission: System Settings → Privacy & Security → Automation → Terminal/iTerm → System Events"
 fi
 
 # ============================================================
