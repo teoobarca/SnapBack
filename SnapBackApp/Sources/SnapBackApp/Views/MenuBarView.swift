@@ -90,8 +90,8 @@ struct MenuBarView: View {
                 Slider(value: $appState.volume, in: 0...1)
                     .controlSize(.small)
                     .tint(Self.accentColor)
-                    .onChange(of: appState.volume) { _ in
-                        appState.saveConfig()
+                    .onChange(of: appState.volume) { newVal in
+                        appState.setVolume(newVal)
                     }
                     .disabled(true)
 
@@ -127,8 +127,8 @@ struct MenuBarView: View {
             }
             .pickerStyle(.segmented)
             .controlSize(.small)
-            .onChange(of: appState.mode) { _ in
-                appState.saveConfig()
+            .onChange(of: appState.mode) { newVal in
+                appState.setMode(newVal)
             }
             .disabled(true)
         }
@@ -173,8 +173,8 @@ struct MenuBarView: View {
                         .labelsHidden()
                         .controlSize(.small)
                         .frame(width: 90)
-                        .onChange(of: appState.browser) { _ in
-                            appState.saveConfig()
+                        .onChange(of: appState.browser) { newVal in
+                            appState.setBrowser(newVal)
                         }
                         .disabled(true)
                     }
@@ -186,8 +186,8 @@ struct MenuBarView: View {
                         Spacer()
                         Stepper("\(appState.throttleSeconds)s", value: $appState.throttleSeconds, in: 1...10)
                             .controlSize(.small)
-                            .onChange(of: appState.throttleSeconds) { _ in
-                                appState.saveConfig()
+                            .onChange(of: appState.throttleSeconds) { newVal in
+                                appState.setThrottle(newVal)
                             }
                             .disabled(true)
                     }
@@ -199,8 +199,8 @@ struct MenuBarView: View {
                         Spacer()
                         Stepper("\(appState.seekBackSeconds)s", value: $appState.seekBackSeconds, in: 0...5)
                             .controlSize(.small)
-                            .onChange(of: appState.seekBackSeconds) { _ in
-                                appState.saveConfig()
+                            .onChange(of: appState.seekBackSeconds) { newVal in
+                                appState.setSeekBack(newVal)
                             }
                             .disabled(true)
                     }
