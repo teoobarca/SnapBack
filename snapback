@@ -54,6 +54,8 @@ Commands:
   on            Enable Claude Code hooks
   off           Disable Claude Code hooks (keeps config)
   mode [MODE]   Set mode: full (sound + focus) or sound (sound only)
+  volume [VAL]  Get/set notification volume (0.0 - 1.0)
+  browser [NAME]  Get/set browser (e.g., "Google Chrome", Arc, Safari)
   config <sub>  Get/set config: get KEY | set KEY VAL | show [--json] | path
   app           Launch menu bar app for GUI configuration
   update        Update to latest version
@@ -418,6 +420,37 @@ cmd_app() {
 }
 
 # ============================================================
+# VOLUME COMMAND
+# ============================================================
+cmd_volume() {
+  local v="${1:-}"
+  if [[ -z "$v" ]]; then
+    config_get VOLUME || echo "1.0"
+    exit 0
+  fi
+  # Validate 0.0 <= v <= 1.0
+  if ! [[ "$v" =~ ^(0(\.[0-9]+)?|1(\.0+)?)$ ]]; then
+    print_error "Invalid volume: $v (expected 0.0 - 1.0)"
+    exit 2
+  fi
+  config_set VOLUME "$v" --allow-new
+  print_success "Volume set to: $v"
+}
+
+# ============================================================
+# BROWSER COMMAND
+# ============================================================
+cmd_browser() {
+  local b="${1:-}"
+  if [[ -z "$b" ]]; then
+    config_get BROWSER || echo "Google Chrome"
+    exit 0
+  fi
+  config_set BROWSER "$b"
+  print_success "Browser set to: $b"
+}
+
+# ============================================================
 # CONFIG COMMAND
 # ============================================================
 cmd_config() {
@@ -509,6 +542,12 @@ main() {
       ;;
     mode)
       cmd_mode "$@"
+      ;;
+    volume)
+      cmd_volume "$@"
+      ;;
+    browser)
+      cmd_browser "$@"
       ;;
     config)
       cmd_config "$@"
