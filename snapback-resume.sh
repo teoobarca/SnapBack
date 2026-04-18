@@ -32,6 +32,30 @@ echo "$now" > "$THROTTLE_FILE"
 # Reset attention throttle
 rm -f "$ATTENTION_THROTTLE_FILE" 2>/dev/null || true
 
+# Bridge integration (1.3.0+): let the mobile bridge know Claude resumed work.
+# Runs unconditionally before early exits so the phone always gets notified.
+: "${SNAPBACK_BRIDGE_SOCKET:=${TMPDIR:-/tmp}/snapback-bridge.sock}"
+if [[ -S "$SNAPBACK_BRIDGE_SOCKET" ]]; then
+  _snapback_poke_bin=""
+  if command -v snapback-poke >/dev/null 2>&1; then
+    _snapback_poke_bin="$(command -v snapback-poke)"
+  else
+    for _cand in \
+      "/Applications/SnapBack.app/Contents/MacOS/snapback-poke" \
+      "$SCRIPT_DIR/SnapBackApp/SnapBack.app/Contents/MacOS/snapback-poke" \
+      "$SCRIPT_DIR/poke/build/snapback-poke"; do
+      if [[ -x "$_cand" ]]; then
+        _snapback_poke_bin="$_cand"
+        break
+      fi
+    done
+  fi
+  if [[ -n "$_snapback_poke_bin" ]]; then
+    ( "$_snapback_poke_bin" resume >/dev/null 2>&1 ) &
+    disown 2>/dev/null || true
+  fi
+fi
+
 # Read and consume state file (format: "AppName:true" or "AppName:false")
 if [[ ! -f "$STATE_FILE" ]]; then
   exit 0
@@ -65,27 +89,4 @@ end tell
 EOF
 else
   osascript -e "tell application \"$returnApp\" to activate" 2>/dev/null || true
-fi
-
-# Bridge integration (1.3.0+): let the mobile bridge know Claude resumed work.
-: "${SNAPBACK_BRIDGE_SOCKET:=${TMPDIR:-/tmp}/snapback-bridge.sock}"
-if [[ -S "$SNAPBACK_BRIDGE_SOCKET" ]]; then
-  _snapback_poke_bin=""
-  if command -v snapback-poke >/dev/null 2>&1; then
-    _snapback_poke_bin="$(command -v snapback-poke)"
-  else
-    for _cand in \
-      "/Applications/SnapBack.app/Contents/MacOS/snapback-poke" \
-      "$SCRIPT_DIR/SnapBackApp/SnapBack.app/Contents/MacOS/snapback-poke" \
-      "$SCRIPT_DIR/poke/build/snapback-poke"; do
-      if [[ -x "$_cand" ]]; then
-        _snapback_poke_bin="$_cand"
-        break
-      fi
-    done
-  fi
-  if [[ -n "$_snapback_poke_bin" ]]; then
-    ( "$_snapback_poke_bin" resume >/dev/null 2>&1 ) &
-    disown 2>/dev/null || true
-  fi
 fi

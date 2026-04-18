@@ -36,6 +36,31 @@ _play_notification() {
   afplay -v "$effectiveVol" "$NOTIFICATION_SOUND" &
 }
 
+# Bridge integration (1.3.0+): silently poke the mobile bridge daemon.
+# Fire-and-forget; zero impact when the socket is absent.
+# Runs unconditionally so both MODE=full and MODE=sound notify the phone.
+: "${SNAPBACK_BRIDGE_SOCKET:=${TMPDIR:-/tmp}/snapback-bridge.sock}"
+if [[ -S "$SNAPBACK_BRIDGE_SOCKET" ]]; then
+  _snapback_poke_bin=""
+  if command -v snapback-poke >/dev/null 2>&1; then
+    _snapback_poke_bin="$(command -v snapback-poke)"
+  else
+    for _cand in \
+      "/Applications/SnapBack.app/Contents/MacOS/snapback-poke" \
+      "$SCRIPT_DIR/SnapBackApp/SnapBack.app/Contents/MacOS/snapback-poke" \
+      "$SCRIPT_DIR/poke/build/snapback-poke"; do
+      if [[ -x "$_cand" ]]; then
+        _snapback_poke_bin="$_cand"
+        break
+      fi
+    done
+  fi
+  if [[ -n "$_snapback_poke_bin" ]]; then
+    ( "$_snapback_poke_bin" attention PermissionRequest >/dev/null 2>&1 ) &
+    disown 2>/dev/null || true
+  fi
+fi
+
 # FAST PATH: Sound-only mode - just play sound and exit immediately
 # No throttling, no app detection, maximum speed
 if [[ "$MODE" == "sound" ]]; then
@@ -144,27 +169,3 @@ end if
 -- Focus apps
 $focusScript
 EOF
-
-# Bridge integration (1.3.0+): silently poke the mobile bridge daemon.
-# Fire-and-forget; zero impact when the socket is absent.
-: "${SNAPBACK_BRIDGE_SOCKET:=${TMPDIR:-/tmp}/snapback-bridge.sock}"
-if [[ -S "$SNAPBACK_BRIDGE_SOCKET" ]]; then
-  _snapback_poke_bin=""
-  if command -v snapback-poke >/dev/null 2>&1; then
-    _snapback_poke_bin="$(command -v snapback-poke)"
-  else
-    for _cand in \
-      "/Applications/SnapBack.app/Contents/MacOS/snapback-poke" \
-      "$SCRIPT_DIR/SnapBackApp/SnapBack.app/Contents/MacOS/snapback-poke" \
-      "$SCRIPT_DIR/poke/build/snapback-poke"; do
-      if [[ -x "$_cand" ]]; then
-        _snapback_poke_bin="$_cand"
-        break
-      fi
-    done
-  fi
-  if [[ -n "$_snapback_poke_bin" ]]; then
-    ( "$_snapback_poke_bin" attention PermissionRequest >/dev/null 2>&1 ) &
-    disown 2>/dev/null || true
-  fi
-fi
