@@ -46,9 +46,23 @@ public final class BridgeServer {
     private var socketPath: String = ""
     private var eventQueue: EventQueue?
     private var log: BridgeLog?
+    // `listenFD` and `running` are written from the main/stopping thread and
+    // read from the accept thread. Darwin word-sized reads are tear-free in
+    // practice; a close() on the listening fd causes the blocking accept() to
+    // return with errno EBADF, which is how we unblock shutdown. Documented
+    // here to keep Phase 12's BridgeOrchestrator honest.
     private var listenFD: Int32 = -1
     private var acceptThread: Thread?
     private var running = false
+
+    /// Max per-connection buffered bytes before a line arrives. Caps worst-case
+    /// memory for a misbehaving local client that never writes LF.
+    private static let perClientBufferCap: Int = 64 * 1024
+
+    /// Invoked after the accept loop exits (either cleanly via `stop()` or due
+    /// to a fatal errno from `accept()`). Lets Phase 12 mark the bridge
+    /// unhealthy / restart.
+    public var onTerminate: ((Int32?) -> Void)?
 
     public init() {}
 
@@ -117,14 +131,21 @@ public final class BridgeServer {
     // MARK: Private
 
     private func acceptLoop() {
+        var lastErrno: Int32? = nil
         while running {
             let client = Darwin.accept(listenFD, nil, nil)
             if client < 0 {
                 if errno == EINTR { continue }
-                break  // listenFD was closed or a fatal error occurred
+                lastErrno = errno
+                break
             }
             handleClient(client)
         }
+        if running {
+            // Fell out of the loop while still supposed to be running — that's a fatal accept().
+            log?.error("bridge accept loop terminated unexpectedly, errno=\(lastErrno ?? 0)")
+        }
+        onTerminate?(lastErrno)
     }
 
     private func handleClient(_ fd: Int32) {
@@ -135,6 +156,10 @@ public final class BridgeServer {
             let n = Darwin.read(fd, &chunk, chunk.count)
             if n <= 0 { break }
             buffer.append(contentsOf: chunk[0..<n])
+            if buffer.count > BridgeServer.perClientBufferCap {
+                log?.warn("bridge per-client buffer cap exceeded; dropping connection")
+                return
+            }
             // Drain any complete lines (terminated by LF 0x0A).
             while let nlIndex = buffer.firstIndex(of: 0x0A) {
                 let lineBytes = Array(buffer[0..<nlIndex])
