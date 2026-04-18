@@ -112,3 +112,14 @@ teardown() {
   [ "$status" -eq 0 ]
   [ "$output" = "Samsung S24" ]
 }
+
+@test "snapback-lib.sh exports SNAPBACK_BRIDGE_SOCKET with a \$TMPDIR-based default" {
+  run bash -c "source '$BATS_TEST_DIRNAME/../snapback-lib.sh' && printf '%s' \"\${SNAPBACK_BRIDGE_SOCKET}\""
+  [ "$status" -eq 0 ]
+  # Must end with /snapback-bridge.sock
+  [[ "$output" == */snapback-bridge.sock ]]
+  # Must live inside $TMPDIR when $TMPDIR is set
+  if [[ -n "${TMPDIR:-}" ]]; then
+    [[ "$output" == "${TMPDIR%/}"/snapback-bridge.sock ]]
+  fi
+}

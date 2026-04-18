@@ -9,6 +9,15 @@ SNAPBACK_LIB_LOADED=1
 # Config file path (overridable for tests)
 : "${SNAPBACK_CONFIG_FILE:=${XDG_CONFIG_HOME:-$HOME/.config}/snapback/config}"
 
+# UDS path that hook scripts poke; the bridge daemon listens on the same path.
+# Per-user $TMPDIR is used on macOS (avoids collisions across user accounts).
+# Strip trailing slash from TMPDIR (macOS appends one) before building the path.
+_snapback_tmpdir="${TMPDIR:-/tmp}"
+_snapback_tmpdir="${_snapback_tmpdir%/}"
+: "${SNAPBACK_BRIDGE_SOCKET:=${_snapback_tmpdir}/snapback-bridge.sock}"
+unset _snapback_tmpdir
+export SNAPBACK_BRIDGE_SOCKET
+
 # Known keys table.  Values are type tags: "scalar" or "array".
 _snapback_known_keys() {
   cat <<'EOF'
