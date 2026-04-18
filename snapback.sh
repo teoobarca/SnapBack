@@ -26,14 +26,20 @@ elif [[ -z "$NOTIFICATION_SOUND" ]]; then
   NOTIFICATION_SOUND=""
 fi
 
+# Play the configured notification sound at the effective volume.
+# Silent no-op if NOTIFICATION_SOUND is empty or missing.
+_play_notification() {
+  [[ -n "$NOTIFICATION_SOUND" && -f "$NOTIFICATION_SOUND" ]] || return 0
+  local sysVol effectiveVol
+  sysVol=$(osascript -e "output volume of (get volume settings)" 2>/dev/null || echo 100)
+  effectiveVol=$(echo "$VOLUME * $sysVol / 100" | bc -l 2>/dev/null || echo "$VOLUME")
+  afplay -v "$effectiveVol" "$NOTIFICATION_SOUND" &
+}
+
 # FAST PATH: Sound-only mode - just play sound and exit immediately
 # No throttling, no app detection, maximum speed
 if [[ "$MODE" == "sound" ]]; then
-  if [[ -n "$NOTIFICATION_SOUND" && -f "$NOTIFICATION_SOUND" ]]; then
-    sysVol=$(osascript -e "output volume of (get volume settings)" 2>/dev/null || echo 100)
-    effectiveVol=$(echo "$VOLUME * $sysVol / 100" | bc -l 2>/dev/null || echo "$VOLUME")
-    afplay -v "$effectiveVol" "$NOTIFICATION_SOUND" &
-  fi
+  _play_notification
   exit 0
 fi
 
@@ -64,21 +70,12 @@ frontmostLower=$(echo "$frontmost" | tr '[:upper:]' '[:lower:]')
 lastFocusApp="${FOCUS_APPS[${#FOCUS_APPS[@]}-1]}"
 lastFocusAppLower=$(echo "$lastFocusApp" | tr '[:upper:]' '[:lower:]')
 if [[ "$frontmostLower" == "$lastFocusAppLower" ]]; then
-  if [[ -n "$NOTIFICATION_SOUND" && -f "$NOTIFICATION_SOUND" ]]; then
-    sysVol=$(osascript -e "output volume of (get volume settings)" 2>/dev/null || echo 100)
-    effectiveVol=$(echo "$VOLUME * $sysVol / 100" | bc -l 2>/dev/null || echo "$VOLUME")
-    afplay -v "$effectiveVol" "$NOTIFICATION_SOUND" &
-  fi
+  _play_notification
   exit 0
 fi
 
 # Play sound immediately (async)
-if [[ -n "$NOTIFICATION_SOUND" && -f "$NOTIFICATION_SOUND" ]]; then
-  # Get system volume (0-100) and multiply with config volume
-  sysVol=$(osascript -e "output volume of (get volume settings)" 2>/dev/null || echo 100)
-  effectiveVol=$(echo "$VOLUME * $sysVol / 100" | bc -l 2>/dev/null || echo "$VOLUME")
-  afplay -v "$effectiveVol" "$NOTIFICATION_SOUND" &
-fi
+_play_notification
 
 # Determine if we should save state (skip workflow apps)
 saveState=""

@@ -58,6 +58,7 @@ Commands:
   browser [NAME]  Get/set browser (e.g., "Google Chrome", Arc, Safari)
   focus <sub>   list | add NAME | remove NAME | set NAME1 NAME2 ...
   config <sub>  Get/set config: get KEY | set KEY VAL | show [--json] | path
+  test          Play a notification preview at the current volume
   app           Launch menu bar app for GUI configuration
   update        Update to latest version
   uninstall     Remove config and hooks completely
@@ -587,6 +588,32 @@ cmd_config() {
 }
 
 # ============================================================
+# TEST COMMAND
+# ============================================================
+cmd_test() {
+  [[ -f "$CONFIG_FILE" ]] || { print_error "Config not found"; exit 1; }
+  # shellcheck disable=SC1090
+  source "$CONFIG_FILE"
+  # Resolve "default"
+  if [[ "${NOTIFICATION_SOUND:-}" == "default" ]]; then
+    NOTIFICATION_SOUND="$SCRIPT_DIR/notification.mp3"
+  fi
+  if [[ -z "${NOTIFICATION_SOUND:-}" ]]; then
+    print_info "NOTIFICATION_SOUND is empty — no sound to play."
+    exit 0
+  fi
+  if [[ ! -f "$NOTIFICATION_SOUND" ]]; then
+    print_error "Sound file not found: $NOTIFICATION_SOUND"
+    exit 1
+  fi
+  local sysVol effectiveVol
+  sysVol=$(osascript -e "output volume of (get volume settings)" 2>/dev/null || echo 100)
+  effectiveVol=$(echo "${VOLUME:-1.0} * $sysVol / 100" | bc -l 2>/dev/null || echo "${VOLUME:-1.0}")
+  afplay -v "$effectiveVol" "$NOTIFICATION_SOUND"
+  print_success "Played $NOTIFICATION_SOUND at ${effectiveVol}"
+}
+
+# ============================================================
 # INSTALL COMMAND
 # ============================================================
 cmd_install() {
@@ -633,6 +660,9 @@ main() {
       ;;
     config)
       cmd_config "$@"
+      ;;
+    test)
+      cmd_test
       ;;
     app)
       cmd_app

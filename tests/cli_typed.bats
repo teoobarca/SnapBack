@@ -64,3 +64,10 @@ teardown() {
   [[ "$output" == *"Terminal"* ]]
   [[ "$output" != *"Cursor"* ]]
 }
+
+@test "snapback test exits 0 when config is valid" {
+  # Use a silent sound to avoid terminal noise
+  snapback config set NOTIFICATION_SOUND ""
+  run snapback test
+  [ "$status" -eq 0 ]
+}
