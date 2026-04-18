@@ -19,12 +19,18 @@ _snapback_hook_escape_token() {
 }
 
 _snapback_hook_write_selected() {
+  if (( $# == 0 )); then
+    config_set HOOK_PROVIDERS "()" --allow-new
+    return
+  fi
   local literal='('
-  local p
+  local first=1 p
   for p in "$@"; do
-    literal+="$(_snapback_hook_escape_token "$p") "
+    (( first )) || literal+=' '
+    first=0
+    literal+="$(_snapback_hook_escape_token "$p")"
   done
-  literal="${literal% })"
+  literal+=')'
   config_set HOOK_PROVIDERS "$literal" --allow-new
 }
 
@@ -85,10 +91,10 @@ _snapback_hook_enable_claude() {
   local tmp
   tmp="$(mktemp)"
   jq --arg snapback "$snapback_path" --arg resume "$resume_path" '
-    .hooks.PermissionRequest = ((.hooks.PermissionRequest // []) | map(select(.hooks[0].command | contains("snapback") | not))) + [{"matcher": "*", "hooks": [{"type": "command", "command": $snapback}]}] |
-    .hooks.Stop = ((.hooks.Stop // []) | map(select(.hooks[0].command | contains("snapback") | not))) + [{"hooks": [{"type": "command", "command": $snapback}]}] |
-    .hooks.PostToolUse = ((.hooks.PostToolUse // []) | map(select(.hooks[0].command | contains("snapback") | not))) + [{"matcher": "Edit|Write|Bash", "hooks": [{"type": "command", "command": $resume}]}] |
-    .hooks.UserPromptSubmit = ((.hooks.UserPromptSubmit // []) | map(select(.hooks[0].command | contains("snapback") | not))) + [{"hooks": [{"type": "command", "command": $resume}]}]
+    .hooks.PermissionRequest = ((.hooks.PermissionRequest // []) | map(select(((.hooks[0].command // "") | contains("snapback")) | not))) + [{"matcher": "*", "hooks": [{"type": "command", "command": $snapback}]}] |
+    .hooks.Stop = ((.hooks.Stop // []) | map(select(((.hooks[0].command // "") | contains("snapback")) | not))) + [{"hooks": [{"type": "command", "command": $snapback}]}] |
+    .hooks.PostToolUse = ((.hooks.PostToolUse // []) | map(select(((.hooks[0].command // "") | contains("snapback")) | not))) + [{"matcher": "Edit|Write|Bash", "hooks": [{"type": "command", "command": $resume}]}] |
+    .hooks.UserPromptSubmit = ((.hooks.UserPromptSubmit // []) | map(select(((.hooks[0].command // "") | contains("snapback")) | not))) + [{"hooks": [{"type": "command", "command": $resume}]}]
   ' "$settings" > "$tmp" && mv "$tmp" "$settings"
 }
 
@@ -105,10 +111,10 @@ _snapback_hook_disable_claude() {
   local tmp
   tmp="$(mktemp)"
   jq '
-    .hooks.PermissionRequest = ((.hooks.PermissionRequest // []) | map(select(.hooks[0].command | contains("snapback") | not))) |
-    .hooks.Stop = ((.hooks.Stop // []) | map(select(.hooks[0].command | contains("snapback") | not))) |
-    .hooks.PostToolUse = ((.hooks.PostToolUse // []) | map(select(.hooks[0].command | contains("snapback") | not))) |
-    .hooks.UserPromptSubmit = ((.hooks.UserPromptSubmit // []) | map(select(.hooks[0].command | contains("snapback") | not))) |
+    .hooks.PermissionRequest = ((.hooks.PermissionRequest // []) | map(select(((.hooks[0].command // "") | contains("snapback")) | not))) |
+    .hooks.Stop = ((.hooks.Stop // []) | map(select(((.hooks[0].command // "") | contains("snapback")) | not))) |
+    .hooks.PostToolUse = ((.hooks.PostToolUse // []) | map(select(((.hooks[0].command // "") | contains("snapback")) | not))) |
+    .hooks.UserPromptSubmit = ((.hooks.UserPromptSubmit // []) | map(select(((.hooks[0].command // "") | contains("snapback")) | not))) |
     if .hooks.PermissionRequest == [] then del(.hooks.PermissionRequest) else . end |
     if .hooks.Stop == [] then del(.hooks.Stop) else . end |
     if .hooks.PostToolUse == [] then del(.hooks.PostToolUse) else . end |
@@ -129,14 +135,16 @@ _snapback_hook_enable_opencode() {
 
   cat > "$plugin_path" <<EOF
 // snapback-managed: do not edit manually
-import { spawnSync } from "node:child_process"
+import { spawn } from "node:child_process"
 
 const SNAPBACK_ATTENTION = "$escaped_snapback"
 const SNAPBACK_RESUME = "$escaped_resume"
 
 const run = (path) => {
   try {
-    spawnSync(path, { stdio: "ignore" })
+    const child = spawn(path, { stdio: "ignore", detached: true })
+    child.on("error", () => {})
+    child.unref()
   } catch {
     // Ignore spawn errors; SnapBack CLI reports status separately.
   }
@@ -147,19 +155,24 @@ export const SnapBackPlugin = async (_ctx) => {
     event: async ({ event }) => {
       const type = event?.type
 
-      // Attention: AI needs user input
+      // Attention: AI needs user input.
       if (type === "permission.asked" || type === "session.idle") {
         run(SNAPBACK_ATTENTION)
         return
       }
 
-      // Resume: user submitted prompt (AI will start working)
-      if (type === "tui.command.execute" && event?.properties?.command === "prompt.submit") {
-        run(SNAPBACK_RESUME)
+      // Resume: user submitted a prompt. The TUI command payload may arrive
+      // on either \`event.data\` or \`event.properties\` depending on the
+      // opencode release; accept whichever is present.
+      if (type === "tui.command.execute") {
+        const cmd = event?.data?.command ?? event?.properties?.command
+        if (cmd === "prompt.submit" || cmd === "prompt_submit") {
+          run(SNAPBACK_RESUME)
+        }
       }
     },
-    // Resume: after tool execution (AI is actively working)
-    "tool.execute.after": async (_input, _output) => {
+    // Resume: after every tool execution (AI is actively working).
+    "tool.execute.after": async (..._args) => {
       run(SNAPBACK_RESUME)
     },
   }

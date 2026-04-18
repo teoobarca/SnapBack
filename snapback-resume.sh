@@ -10,9 +10,14 @@ BROWSER="Google Chrome"
 SEEK_BACK_SECONDS=1
 THROTTLE_SECONDS=2
 
-# Load user config if exists
+# Load user config if exists. A syntax error inside `source` aborts this
+# shell even with `|| ...`, so validate in a subshell first.
 if [[ -f "$CONFIG_FILE" ]]; then
-  source "$CONFIG_FILE"
+  if _CFG="$CONFIG_FILE" bash -c 'source "$_CFG"' >/dev/null 2>&1; then
+    source "$CONFIG_FILE"
+  else
+    echo "snapback-resume: warning: $CONFIG_FILE has a syntax error, using defaults" >&2
+  fi
 fi
 
 STATE_FILE="/tmp/snapback_state"

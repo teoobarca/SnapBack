@@ -14,9 +14,17 @@ NOTIFICATION_SOUND="default"
 MODE="both"
 VOLUME="1.0"
 
-# Load user config if exists
+# Load user config if exists. A malformed config cannot be recovered from
+# via `source ... || ...` because a syntax error aborts the current shell
+# (and macOS bash 3.2 `bash -n` returns 0 even on unterminated arrays).
+# Validate in a subshell first; only source into the current shell if the
+# config parses cleanly.
 if [[ -f "$CONFIG_FILE" ]]; then
-  source "$CONFIG_FILE"
+  if _CFG="$CONFIG_FILE" bash -c 'source "$_CFG"' >/dev/null 2>&1; then
+    source "$CONFIG_FILE"
+  else
+    echo "snapback: warning: $CONFIG_FILE has a syntax error, using defaults" >&2
+  fi
 fi
 
 # Resolve notification sound path

@@ -125,3 +125,69 @@ teardown() {
   snapback hooks remove all
   [ "$(snapback hooks get)" = "none" ]
 }
+
+@test "removing the last provider leaves a sourceable config" {
+  snapback hooks set claude
+  snapback hooks remove claude
+  [ "$(snapback hooks get)" = "none" ]
+
+  # The config must stay valid bash — a broken `HOOK_PROVIDERS=(` would make
+  # snapback.sh abort under `set -e` on every hook invocation.
+  run bash -c "set -euo pipefail; source \"$SNAPBACK_CONFIG_FILE\""
+  [ "$status" -eq 0 ]
+  grep -qx 'HOOK_PROVIDERS=()' "$SNAPBACK_CONFIG_FILE"
+}
+
+@test "claude hook enable preserves entries without .hooks[0].command" {
+  # jq's `contains("snapback")` throws on a null — must guard with `// ""`.
+  # Seed ~/.claude/settings.json with a hook entry whose command is missing,
+  # then enable claude hooks and assert (a) enable succeeds, (b) the foreign
+  # entry is preserved, (c) a snapback entry was added.
+  mkdir -p "$TMP/home/.claude"
+  cat > "$TMP/home/.claude/settings.json" <<'JSON'
+{
+  "hooks": {
+    "PermissionRequest": [
+      { "matcher": "*", "hooks": [ { "type": "notification", "message": "hi" } ] }
+    ]
+  }
+}
+JSON
+  run env HOME="$TMP/home" BATS_TEST_DIRNAME="$BATS_TEST_DIRNAME" bash -c '
+    set -euo pipefail
+    source "$BATS_TEST_DIRNAME/../snapback-lib.sh"
+    source "$BATS_TEST_DIRNAME/../snapback-hooks.sh"
+    _snapback_hook_enable_claude /usr/local/bin/snapback.sh /usr/local/bin/snapback-resume.sh
+  '
+  [ "$status" -eq 0 ]
+  # Foreign entry preserved, snapback entry appended.
+  run jq -r '[.hooks.PermissionRequest[] | .hooks[0].type] | join(",")' "$TMP/home/.claude/settings.json"
+  [[ "$output" == *"notification"* ]]
+  [[ "$output" == *"command"* ]]
+}
+
+@test "snapback.sh tolerates a corrupted config" {
+  # Break the config on purpose; snapback.sh must not abort on source.
+  # We grep the script for the defensive `source ... || ...` pattern and
+  # also verify that a corrupted file doesn't kill a mimicking shell.
+  printf '\nHOOK_PROVIDERS=(\n' >> "$SNAPBACK_CONFIG_FILE"
+  # Defensive pre-validation must be present in both runtime scripts.
+  grep -q '_CFG="$CONFIG_FILE" bash -c' "$BATS_TEST_DIRNAME/../snapback.sh"
+  grep -q '_CFG="$CONFIG_FILE" bash -c' "$BATS_TEST_DIRNAME/../snapback-resume.sh"
+
+  # Run snapback.sh with MODE=sound (fast path, no osascript) and an empty
+  # sound file. The corrupted config must NOT take down the script.
+  mkdir -p "$TMP/override"
+  cat > "$TMP/override/config" <<'EOF'
+MODE="sound"
+NOTIFICATION_SOUND=""
+EOF
+  # Then concatenate the broken section AFTER the good keys:
+  printf '\nHOOK_PROVIDERS=(\n' >> "$TMP/override/config"
+  # snapback.sh reads ${XDG_CONFIG_HOME:-$HOME/.config}/snapback/config, so
+  # point XDG_CONFIG_HOME at a dir that contains snapback/config.
+  mkdir -p "$TMP/xdg/snapback"
+  cp "$TMP/override/config" "$TMP/xdg/snapback/config"
+  run env XDG_CONFIG_HOME="$TMP/xdg" bash "$BATS_TEST_DIRNAME/../snapback.sh"
+  [ "$status" -eq 0 ]
+}
