@@ -10,6 +10,14 @@ let package = Package(
         .executableTarget(
             name: "SnapBackApp",
             path: "Sources/SnapBackApp"
+        ),
+        .testTarget(
+            name: "BridgeTests",
+            dependencies: ["SnapBackApp"],
+            path: "Tests/BridgeTests",
+            resources: [
+                .copy("fixtures")
+            ]
         )
     ]
 )
