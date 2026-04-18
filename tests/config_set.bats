@@ -45,3 +45,21 @@ teardown() {
   grep -qx 'CUSTOM="keep"' "$SNAPBACK_CONFIG_FILE"
   grep -qx 'MODE="sound"' "$SNAPBACK_CONFIG_FILE"
 }
+
+@test "config_set writes FOCUS_APPS as a bash array literal" {
+  printf 'FOCUS_APPS=("Old")\nMODE="full"\n' > "$SNAPBACK_CONFIG_FILE"
+  # Caller passes pre-formatted literal
+  config_set FOCUS_APPS '("Cursor" "Ghostty")'
+  grep -qx 'FOCUS_APPS=("Cursor" "Ghostty")' "$SNAPBACK_CONFIG_FILE"
+  grep -qx 'MODE="full"' "$SNAPBACK_CONFIG_FILE"
+}
+
+@test "config_set serializes concurrent writers via flock" {
+  : > "$SNAPBACK_CONFIG_FILE"
+  (config_set MODE sound --allow-new) &
+  (config_set VOLUME "0.5" --allow-new) &
+  wait
+  # Both keys must be present
+  grep -qx 'MODE="sound"' "$SNAPBACK_CONFIG_FILE"
+  grep -qx 'VOLUME="0.5"' "$SNAPBACK_CONFIG_FILE"
+}
