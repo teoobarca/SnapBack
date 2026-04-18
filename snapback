@@ -2,7 +2,7 @@
 # SnapBack CLI - Attention manager for Claude Code
 set -euo pipefail
 
-VERSION="1.1.0"
+VERSION="1.2.0"
 # Resolve symlinks to get the actual script directory
 SOURCE="$0"
 while [[ -L "$SOURCE" ]]; do
@@ -13,6 +13,20 @@ done
 SCRIPT_DIR="$(cd "$(dirname "$SOURCE")" && pwd)"
 CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/snapback"
 CONFIG_FILE="$CONFIG_DIR/config"
+
+# Load shared config library.  Priority: repo-adjacent, then system share path.
+if [[ -f "$SCRIPT_DIR/snapback-lib.sh" ]]; then
+  # shellcheck source=snapback-lib.sh
+  source "$SCRIPT_DIR/snapback-lib.sh"
+elif [[ -f "/usr/local/share/snapback/snapback-lib.sh" ]]; then
+  source "/usr/local/share/snapback/snapback-lib.sh"
+else
+  echo "error: snapback-lib.sh not found" >&2
+  exit 1
+fi
+
+# Align lib's config path with the CLI's.
+SNAPBACK_CONFIG_FILE="$CONFIG_FILE"
 CLAUDE_SETTINGS="$HOME/.claude/settings.json"
 
 # Colors
@@ -36,12 +50,18 @@ Usage: snapback <command>
 
 Commands:
   install [-y]  Interactive installation and configuration
-  status        Check if everything is configured correctly
+  status        Check configuration and menu-bar state
   on            Enable Claude Code hooks
   off           Disable Claude Code hooks (keeps config)
-  mode [MODE]   Set mode: full (sound + focus) or sound (sound only)
-  update        Update to latest version
-  uninstall     Remove config and hooks completely
+  mode [MODE]   Get/set mode: full (sound + focus) or sound (sound only)
+  volume [VAL]  Get/set notification volume (0.0 - 1.0)
+  browser [NAME]  Get/set browser (Google Chrome, Arc, Safari, Firefox, Brave)
+  focus <sub>   list | add NAME | remove NAME | set NAME1 NAME2 ...
+  config <sub>  get KEY | set KEY VAL [--allow-new] | show [--json] | path
+  test          Play a notification preview
+  app           Launch the menu-bar app (if installed)
+  update        Update to latest version (and rebuild menu-bar app if installed)
+  uninstall     Remove config, hooks, and menu-bar app
   help          Show this help message
 
 Options:
@@ -75,8 +95,8 @@ cmd_status() {
   if [[ -f "$CONFIG_FILE" ]]; then
     print_success "Config exists: $CONFIG_FILE"
     source "$CONFIG_FILE"
-    print_info "  Focus apps: ${FOCUS_APPS[*]}"
-    print_info "  Browser: $BROWSER"
+    print_info "  Focus apps: ${FOCUS_APPS[*]:-<unset>}"
+    print_info "  Browser: ${BROWSER:-<unset>}"
     local current_mode="${MODE:-full}"
     if [[ "$current_mode" == "sound" ]]; then
       print_info "  Mode: sound (no app switching)"
@@ -127,6 +147,31 @@ cmd_status() {
   else
     print_warning "System Events access may be needed"
     print_info "  Run: snapback.sh manually to trigger permission dialog"
+  fi
+
+  # Menu-bar app status
+  echo ""
+  echo "Menu-bar app"
+  echo "────────────"
+  if [[ -d "/Applications/SnapBack.app" ]]; then
+    print_success "Installed at /Applications/SnapBack.app"
+    if pgrep -x SnapBack >/dev/null 2>&1; then
+      print_info "  Running"
+    else
+      print_info "  Not running (launch with: snapback app)"
+    fi
+  else
+    print_info "Not installed (run 'snapback update' with Swift available to install)"
+  fi
+
+  # Effective volume (configured VOLUME × system volume)
+  if [[ -f "$CONFIG_FILE" ]]; then
+    local configured_vol sys_vol effective_pct
+    configured_vol=$(config_get VOLUME 2>/dev/null || echo "1.0")
+    sys_vol=$(osascript -e "output volume of (get volume settings)" 2>/dev/null || echo "100")
+    effective_pct=$(echo "$configured_vol * $sys_vol" | bc -l 2>/dev/null | awk '{printf "%.0f", $1}')
+    echo ""
+    print_info "Effective volume: ${configured_vol} × ${sys_vol}% = ${effective_pct}%"
   fi
 
   # Summary
@@ -248,17 +293,10 @@ cmd_mode() {
     exit 1
   fi
 
-  # Update config file
-  if grep -q "^MODE=" "$CONFIG_FILE" 2>/dev/null; then
-    # Replace existing MODE line
-    local tmp=$(mktemp)
-    sed "s/^MODE=.*/MODE=\"$mode\"/" "$CONFIG_FILE" > "$tmp" && mv "$tmp" "$CONFIG_FILE"
-  else
-    # Add MODE to config
-    echo "" >> "$CONFIG_FILE"
-    echo "# Mode: \"full\" (sound + focus apps) or \"sound\" (sound only)" >> "$CONFIG_FILE"
-    echo "MODE=\"$mode\"" >> "$CONFIG_FILE"
-  fi
+  config_set MODE "$mode" --allow-new || {
+    print_error "Failed to write config"
+    exit 1
+  }
 
   print_success "Mode set to: $mode"
   if [[ "$mode" == "sound" ]]; then
@@ -326,6 +364,19 @@ cmd_uninstall() {
     print_success "Removed installation: ~/.snapback"
   fi
 
+  # Remove menu-bar app if installed
+  if [[ -d "/Applications/SnapBack.app" ]]; then
+    read -p "Remove /Applications/SnapBack.app? [y/N]: " rm_app
+    if [[ "$rm_app" =~ ^[Yy]$ ]]; then
+      if [[ -w /Applications/SnapBack.app ]]; then
+        rm -rf /Applications/SnapBack.app
+      else
+        sudo rm -rf /Applications/SnapBack.app
+      fi
+      print_success "Removed /Applications/SnapBack.app"
+    fi
+  fi
+
   echo ""
   print_success "SnapBack uninstalled"
   echo ""
@@ -371,9 +422,14 @@ cmd_update() {
       cp "$tmp_dir/snapback" "$install_dir/"
       cp "$tmp_dir/snapback.sh" "$install_dir/"
       cp "$tmp_dir/snapback-resume.sh" "$install_dir/"
+      cp "$tmp_dir/snapback-lib.sh" "$install_dir/"
       cp "$tmp_dir/install.sh" "$install_dir/"
       cp "$tmp_dir/notification.mp3" "$install_dir/" 2>/dev/null || true
-      chmod +x "$install_dir/snapback" "$install_dir/snapback.sh" "$install_dir/snapback-resume.sh" "$install_dir/install.sh"
+      rm -rf "$install_dir/SnapBackApp"
+      cp -R "$tmp_dir/SnapBackApp" "$install_dir/"
+      chmod +x "$install_dir/snapback" "$install_dir/snapback.sh" \
+               "$install_dir/snapback-resume.sh" "$install_dir/install.sh" \
+               "$install_dir/SnapBackApp/build-app.sh"
       rm -rf "$tmp_dir"
       print_success "Updated to latest version"
     else
@@ -383,10 +439,286 @@ cmd_update() {
     fi
   fi
 
+  # Menu-bar app maintenance
+  local app_installed="/Applications/SnapBack.app"
+  if [[ -d "$install_dir/SnapBackApp" ]] && command -v swift &>/dev/null; then
+    if [[ -d "$app_installed" ]]; then
+      print_info "Rebuilding menu-bar app..."
+      (
+        cd "$install_dir/SnapBackApp"
+        for p in /usr/local/bin/snapback /opt/homebrew/bin/snapback "$HOME/.local/bin/snapback"; do
+          [[ -x "$p" ]] && export SNAPBACK_CLI_PATH="$p" && break
+        done
+        ./build-app.sh
+      )
+      if [[ -w /Applications ]]; then
+        rm -rf "$app_installed"
+        cp -R "$install_dir/SnapBackApp/SnapBack.app" "$app_installed"
+      else
+        sudo rm -rf "$app_installed"
+        sudo cp -R "$install_dir/SnapBackApp/SnapBack.app" "$app_installed"
+      fi
+      print_success "Menu-bar app rebuilt"
+    else
+      # Offer to install now, respecting non-TTY
+      if [[ -t 0 ]]; then
+        read -p "Menu-bar app not installed. Install now? [y/N]: " yn
+        if [[ "$yn" =~ ^[Yy]$ ]]; then
+          (
+            cd "$install_dir/SnapBackApp"
+            for p in /usr/local/bin/snapback /opt/homebrew/bin/snapback "$HOME/.local/bin/snapback"; do
+              [[ -x "$p" ]] && export SNAPBACK_CLI_PATH="$p" && break
+            done
+            ./build-app.sh
+          )
+          if [[ -w /Applications ]]; then
+            cp -R "$install_dir/SnapBackApp/SnapBack.app" "$app_installed"
+          else
+            sudo cp -R "$install_dir/SnapBackApp/SnapBack.app" "$app_installed"
+          fi
+          print_success "Menu-bar app installed"
+        fi
+      fi
+    fi
+  elif [[ -d "$install_dir/SnapBackApp" ]]; then
+    print_info "Menu-bar app present but Swift not available — install Xcode Command Line Tools to build."
+  fi
+
   echo ""
   # Show new version
   "$install_dir/snapback" --version
   echo ""
+}
+
+# ============================================================
+# APP COMMAND (Menu Bar App)
+# ============================================================
+cmd_app() {
+  local app_bundle="$SCRIPT_DIR/SnapBackApp/SnapBack.app"
+  local installed_app="/Applications/SnapBack.app"
+
+  # Check if app exists
+  if [[ -d "$installed_app" ]]; then
+    open "$installed_app"
+  elif [[ -d "$app_bundle" ]]; then
+    open "$app_bundle"
+  else
+    print_error "SnapBack menu bar app not found"
+    print_info "Build it first: cd $SCRIPT_DIR/SnapBackApp && ./build-app.sh"
+    exit 1
+  fi
+}
+
+# ============================================================
+# VOLUME COMMAND
+# ============================================================
+cmd_volume() {
+  local v="${1:-}"
+  if [[ -z "$v" ]]; then
+    config_get VOLUME || echo "1.0"
+    exit 0
+  fi
+  # Validate 0.0 <= v <= 1.0
+  if ! [[ "$v" =~ ^(0(\.[0-9]+)?|1(\.0+)?)$ ]]; then
+    print_error "Invalid volume: $v (expected 0.0 - 1.0)"
+    exit 2
+  fi
+  config_set VOLUME "$v" --allow-new
+  print_success "Volume set to: $v"
+}
+
+# ============================================================
+# BROWSER COMMAND
+# ============================================================
+cmd_browser() {
+  local b="${1:-}"
+  if [[ -z "$b" ]]; then
+    config_get BROWSER || echo "Google Chrome"
+    exit 0
+  fi
+  config_set BROWSER "$b"
+  print_success "Browser set to: $b"
+}
+
+# ============================================================
+# FOCUS COMMAND
+# ============================================================
+_focus_escape_token() {
+  local v="$1"
+  v="${v//\\/\\\\}"
+  v="${v//\$/\\\$}"
+  v="${v//\`/\\\`}"
+  v="${v//\"/\\\"}"
+  printf '"%s"' "$v"
+}
+
+_focus_write_array() {
+  local literal='('
+  local a
+  for a in "$@"; do
+    literal+="$(_focus_escape_token "$a") "
+  done
+  literal="${literal% })"
+  config_set FOCUS_APPS "$literal"
+}
+
+cmd_focus() {
+  local sub="${1:-list}"
+  shift || true
+  # Snapshot current list (bash 3.2-compatible — no mapfile)
+  local apps=()
+  if [[ -f "$CONFIG_FILE" ]]; then
+    while IFS= read -r line; do
+      apps+=("$line")
+    done < <(
+      # shellcheck disable=SC1090
+      source "$CONFIG_FILE" 2>/dev/null
+      for a in "${FOCUS_APPS[@]+"${FOCUS_APPS[@]}"}"; do printf '%s\n' "$a"; done
+    )
+  fi
+  case "$sub" in
+    list)
+      local a
+      for a in "${apps[@]+"${apps[@]}"}"; do printf '%s\n' "$a"; done
+      ;;
+    add)
+      [[ $# -ge 1 ]] || { print_error "Usage: snapback focus add NAME"; exit 2; }
+      local new="$1"
+      local a
+      for a in "${apps[@]+"${apps[@]}"}"; do
+        [[ "$a" == "$new" ]] && { print_info "Already present: $new"; exit 0; }
+      done
+      apps+=("$new")
+      _focus_write_array "${apps[@]+"${apps[@]}"}"
+      print_success "Added: $new"
+      ;;
+    remove)
+      [[ $# -ge 1 ]] || { print_error "Usage: snapback focus remove NAME"; exit 2; }
+      local drop="$1" kept=() changed=0
+      local a
+      for a in "${apps[@]+"${apps[@]}"}"; do
+        if [[ "$a" == "$drop" ]]; then changed=1; else kept+=("$a"); fi
+      done
+      if (( changed == 0 )); then
+        print_warning "Not present: $drop"
+        exit 0
+      fi
+      if (( ${#kept[@]} == 0 )); then
+        print_error "Cannot remove last focus app (list would be empty)"
+        print_info "Use 'snapback focus set NAME1 NAME2 ...' to replace the whole list"
+        exit 1
+      fi
+      _focus_write_array "${kept[@]+"${kept[@]}"}"
+      print_success "Removed: $drop"
+      ;;
+    set)
+      [[ $# -ge 1 ]] || { print_error "Usage: snapback focus set NAME [NAME ...]"; exit 2; }
+      _focus_write_array "$@"
+      print_success "Focus apps set to: $*"
+      ;;
+    *)
+      print_error "Unknown focus subcommand: $sub"
+      exit 2
+      ;;
+  esac
+}
+
+# ============================================================
+# CONFIG COMMAND
+# ============================================================
+cmd_config() {
+  local sub="${1:-}"
+  shift || true
+  case "$sub" in
+    get)
+      [[ $# -ge 1 ]] || { print_error "Usage: snapback config get KEY"; exit 2; }
+      config_get "$1" || { print_error "Key not set: $1"; exit 1; }
+      ;;
+    set)
+      [[ $# -ge 2 ]] || { print_error "Usage: snapback config set KEY VALUE [--allow-new]"; exit 2; }
+      config_set "$@" || exit $?
+      ;;
+    show)
+      local json=0
+      [[ "${1:-}" == "--json" ]] && json=1
+      if (( json )); then
+        local first=1
+        echo "{"
+        while read -r k ktype; do
+          local v
+          if v=$(config_get "$k" 2>/dev/null); then
+            (( first )) || echo ","
+            first=0
+            if [[ "$ktype" == "array" ]]; then
+              # Emit as JSON array; config_get returns one token per line.
+              printf '  "%s": [' "$k"
+              local first_item=1
+              while IFS= read -r item; do
+                [[ -z "$item" ]] && continue
+                (( first_item )) || printf ', '
+                first_item=0
+                local esc="${item//\\/\\\\}"
+                esc="${esc//\"/\\\"}"
+                printf '"%s"' "$esc"
+              done <<< "$v"
+              printf ']'
+            else
+              # Shell-escape for JSON: minimal (no \n in values)
+              local esc="${v//\\/\\\\}"
+              esc="${esc//\"/\\\"}"
+              printf '  "%s": "%s"' "$k" "$esc"
+            fi
+          fi
+        done < <(_snapback_known_keys)
+        echo ""
+        echo "}"
+      else
+        while read -r k _; do
+          local v
+          if v=$(config_get "$k" 2>/dev/null); then
+            printf '%s=%s\n' "$k" "$v"
+          fi
+        done < <(_snapback_known_keys)
+      fi
+      ;;
+    path)
+      printf '%s\n' "$CONFIG_FILE"
+      ;;
+    "")
+      print_error "Usage: snapback config <get|set|show|path> ..."
+      exit 2
+      ;;
+    *)
+      print_error "Unknown config subcommand: $sub"
+      exit 2
+      ;;
+  esac
+}
+
+# ============================================================
+# TEST COMMAND
+# ============================================================
+cmd_test() {
+  [[ -f "$CONFIG_FILE" ]] || { print_error "Config not found"; exit 1; }
+  # shellcheck disable=SC1090
+  source "$CONFIG_FILE"
+  # Resolve "default"
+  if [[ "${NOTIFICATION_SOUND:-}" == "default" ]]; then
+    NOTIFICATION_SOUND="$SCRIPT_DIR/notification.mp3"
+  fi
+  if [[ -z "${NOTIFICATION_SOUND:-}" ]]; then
+    print_info "NOTIFICATION_SOUND is empty — no sound to play."
+    exit 0
+  fi
+  if [[ ! -f "$NOTIFICATION_SOUND" ]]; then
+    print_error "Sound file not found: $NOTIFICATION_SOUND"
+    exit 1
+  fi
+  local sysVol effectiveVol
+  sysVol=$(osascript -e "output volume of (get volume settings)" 2>/dev/null || echo 100)
+  effectiveVol=$(echo "${VOLUME:-1.0} * $sysVol / 100" | bc -l 2>/dev/null || echo "${VOLUME:-1.0}")
+  afplay -v "$effectiveVol" "$NOTIFICATION_SOUND"
+  print_success "Played $NOTIFICATION_SOUND at ${effectiveVol}"
 }
 
 # ============================================================
@@ -424,6 +756,24 @@ main() {
       ;;
     mode)
       cmd_mode "$@"
+      ;;
+    volume)
+      cmd_volume "$@"
+      ;;
+    browser)
+      cmd_browser "$@"
+      ;;
+    focus)
+      cmd_focus "$@"
+      ;;
+    config)
+      cmd_config "$@"
+      ;;
+    test)
+      cmd_test
+      ;;
+    app)
+      cmd_app
       ;;
     update)
       cmd_update

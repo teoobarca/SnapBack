@@ -8,6 +8,7 @@ Future improvements and feature ideas.
 - [x] One-liner installation (`curl | bash`)
 - [x] Update command (`snapback update`)
 - [x] Non-interactive install (`snapback install -y`)
+- [x] macOS menubar app with on/off toggle
 
 ## Planned
 
@@ -19,7 +20,6 @@ Future improvements and feature ideas.
 - Pause other media apps (VLC, Spotify, Apple Music)
 
 ### Nice to Have
-- macOS menubar app with on/off toggle
 - macOS Focus modes integration
 
 ### Future

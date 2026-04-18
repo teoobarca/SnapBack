@@ -12,6 +12,7 @@ BROWSER="Google Chrome"
 THROTTLE_SECONDS=2
 NOTIFICATION_SOUND="default"
 MODE="full"
+VOLUME="1.0"
 
 # Load user config if exists
 if [[ -f "$CONFIG_FILE" ]]; then
@@ -25,12 +26,20 @@ elif [[ -z "$NOTIFICATION_SOUND" ]]; then
   NOTIFICATION_SOUND=""
 fi
 
+# Play the configured notification sound at the effective volume.
+# Silent no-op if NOTIFICATION_SOUND is empty or missing.
+_play_notification() {
+  [[ -n "$NOTIFICATION_SOUND" && -f "$NOTIFICATION_SOUND" ]] || return 0
+  local sysVol effectiveVol
+  sysVol=$(osascript -e "output volume of (get volume settings)" 2>/dev/null || echo 100)
+  effectiveVol=$(echo "$VOLUME * $sysVol / 100" | bc -l 2>/dev/null || echo "$VOLUME")
+  afplay -v "$effectiveVol" "$NOTIFICATION_SOUND" &
+}
+
 # FAST PATH: Sound-only mode - just play sound and exit immediately
 # No throttling, no app detection, maximum speed
 if [[ "$MODE" == "sound" ]]; then
-  if [[ -n "$NOTIFICATION_SOUND" && -f "$NOTIFICATION_SOUND" ]]; then
-    afplay "$NOTIFICATION_SOUND" &
-  fi
+  _play_notification
   exit 0
 fi
 
@@ -57,20 +66,22 @@ rm -f "$RESUME_THROTTLE_FILE" 2>/dev/null || true
 frontmost=$(osascript -e 'tell application "System Events" to get name of first application process whose frontmost is true' 2>/dev/null || true)
 frontmostLower=$(echo "$frontmost" | tr '[:upper:]' '[:lower:]')
 
+# If FOCUS_APPS is empty, just play sound and exit
+if (( ${#FOCUS_APPS[@]} == 0 )); then
+  _play_notification
+  exit 0
+fi
+
 # If already in last focus app, just play sound and exit (case-insensitive comparison)
 lastFocusApp="${FOCUS_APPS[${#FOCUS_APPS[@]}-1]}"
 lastFocusAppLower=$(echo "$lastFocusApp" | tr '[:upper:]' '[:lower:]')
 if [[ "$frontmostLower" == "$lastFocusAppLower" ]]; then
-  if [[ -n "$NOTIFICATION_SOUND" && -f "$NOTIFICATION_SOUND" ]]; then
-    afplay "$NOTIFICATION_SOUND" &
-  fi
+  _play_notification
   exit 0
 fi
 
 # Play sound immediately (async)
-if [[ -n "$NOTIFICATION_SOUND" && -f "$NOTIFICATION_SOUND" ]]; then
-  afplay "$NOTIFICATION_SOUND" &
-fi
+_play_notification
 
 # Determine if we should save state (skip workflow apps)
 saveState=""
