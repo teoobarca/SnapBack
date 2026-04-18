@@ -149,6 +149,31 @@ cmd_status() {
     print_info "  Run: snapback.sh manually to trigger permission dialog"
   fi
 
+  # Menu-bar app status
+  echo ""
+  echo "Menu-bar app"
+  echo "────────────"
+  if [[ -d "/Applications/SnapBack.app" ]]; then
+    print_success "Installed at /Applications/SnapBack.app"
+    if pgrep -x SnapBack >/dev/null 2>&1; then
+      print_info "  Running"
+    else
+      print_info "  Not running (launch with: snapback app)"
+    fi
+  else
+    print_info "Not installed (run 'snapback update' with Swift available to install)"
+  fi
+
+  # Effective volume (configured VOLUME × system volume)
+  if [[ -f "$CONFIG_FILE" ]]; then
+    local configured_vol sys_vol effective_pct
+    configured_vol=$(config_get VOLUME 2>/dev/null || echo "1.0")
+    sys_vol=$(osascript -e "output volume of (get volume settings)" 2>/dev/null || echo "100")
+    effective_pct=$(echo "$configured_vol * $sys_vol" | bc -l 2>/dev/null | awk '{printf "%.0f", $1}')
+    echo ""
+    print_info "Effective volume: ${configured_vol} × ${sys_vol}% = ${effective_pct}%"
+  fi
+
   # Summary
   echo ""
   if [[ "$all_ok" == true ]]; then
@@ -337,6 +362,19 @@ cmd_uninstall() {
   if [[ -d "$HOME/.snapback" ]]; then
     rm -rf "$HOME/.snapback"
     print_success "Removed installation: ~/.snapback"
+  fi
+
+  # Remove menu-bar app if installed
+  if [[ -d "/Applications/SnapBack.app" ]]; then
+    read -p "Remove /Applications/SnapBack.app? [y/N]: " rm_app
+    if [[ "$rm_app" =~ ^[Yy]$ ]]; then
+      if [[ -w /Applications/SnapBack.app ]]; then
+        rm -rf /Applications/SnapBack.app
+      else
+        sudo rm -rf /Applications/SnapBack.app
+      fi
+      print_success "Removed /Applications/SnapBack.app"
+    fi
   fi
 
   echo ""
