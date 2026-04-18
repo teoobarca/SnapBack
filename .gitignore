@@ -1,3 +1,6 @@
+# macOS
 .DS_Store
 
-
+# Swift build artifacts
+SnapBackApp/.build/
+SnapBackApp/SnapBack.app/
