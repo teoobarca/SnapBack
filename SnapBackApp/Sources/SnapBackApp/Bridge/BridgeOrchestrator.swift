@@ -20,7 +20,6 @@ public final class BridgeOrchestrator {
     private let heartbeat: HeartbeatLoop
     private let drainQueue = DispatchQueue(label: "com.snapback.bridge.orchestrator")
     private var drainTimer: DispatchSourceTimer?
-    private var holdOutstanding = false
 
     public init(eventQueue: EventQueue,
                 peer: MobilePeer,
@@ -50,7 +49,7 @@ public final class BridgeOrchestrator {
         peer.onMessage = { [weak self] msg in self?.handleInbound(msg) }
 
         heartbeat.onPing = { [weak self] in self?.sendHeartbeat() }
-        heartbeat.onDeadPeer = { [weak self] in self?.holdOutstanding = false }
+        heartbeat.onDeadPeer = { [weak self] in self?.heartbeat.stop() }
     }
 
     public func start() {
@@ -76,11 +75,9 @@ public final class BridgeOrchestrator {
             switch event {
             case .attention(let kind):
                 send(.attention, payload: [("hook", .string(kind))])
-                holdOutstanding = true
                 heartbeat.start()
             case .resume:
                 send(.resume, payload: [])
-                holdOutstanding = false
                 heartbeat.stop()
             }
         }
@@ -104,13 +101,20 @@ public final class BridgeOrchestrator {
         switch msg.type {
         case .pong:
             heartbeat.recordPong()
+            // The phone is the ground truth for HOLD state. Mirror it onto the
+            // heartbeat scheduler so we keep probing only while the phone is
+            // actually holding.
             if case let .bool(phoneHold)? = msg.payload.first(where: { $0.0 == "hold" })?.1 {
-                holdOutstanding = phoneHold
-                if !phoneHold { heartbeat.stop() }
+                if phoneHold {
+                    heartbeat.start()
+                } else {
+                    heartbeat.stop()
+                }
             }
         case .ack, .invalidate:
             break
-        default:
+        case .hello, .attention, .resume, .heartbeat, .resync:
+            // Phone should never initiate these; ignore.
             break
         }
     }
