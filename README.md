@@ -192,3 +192,23 @@ Add to `~/.claude/settings.json`:
 ## License
 
 MIT © [teoobarca](https://github.com/teoobarca)
+
+## Mobile (experimental, 1.3.0 preview)
+
+1.3.0 ships the desktop side of a mobile companion: a persistent bridge daemon
+inside SnapBackApp that will talk to a future Android app to force-lock your
+phone when Claude Code blocks on you. No phone app is shipped yet. The bridge
+is feature-complete against `docs/PROTOCOL.md` and can be tested against an
+in-process Swift peer.
+
+Turn it on:
+
+```sh
+snapback mobile enable
+snapback mobile status
+```
+
+When the Android companion ships in 1.4.0, the menu-bar app will show a "Pair
+mobile…" QR that completes the link. Until then, `snapback mobile status`
+reports whether the bridge socket is live. See `docs/superpowers/specs/2026-04-18-mobile-companion-design.md`
+for the full design.
