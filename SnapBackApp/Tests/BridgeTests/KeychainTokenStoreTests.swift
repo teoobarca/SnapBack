@@ -27,4 +27,12 @@ final class KeychainTokenStoreTests: XCTestCase {
         try store.delete()
         XCTAssertNil(store.read())
     }
+
+    func testGenerateAndStoreProducesUniqueTokens() throws {
+        let store = testStore()
+        defer { try? store.delete() }
+        let a = try store.generateAndStore()
+        let b = try store.generateAndStore()
+        XCTAssertNotEqual(a, b, "RNG produced the same 32 bytes twice; check SecRandomCopyBytes path")
+    }
 }

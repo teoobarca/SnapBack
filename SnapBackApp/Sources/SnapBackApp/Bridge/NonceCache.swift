@@ -1,6 +1,8 @@
 import Foundation
 
-/// Bounded TTL+LRU cache for replay protection.
+/// Bounded TTL cache with FIFO eviction for replay protection.
+/// Existing entries are never promoted on duplicate-add — a replayed nonce
+/// cannot extend its own lifetime by retrying, which is the intent here.
 /// Thread-safe via an internal serial queue.
 public final class NonceCache {
     private let capacity: Int
