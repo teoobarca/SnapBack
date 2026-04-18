@@ -1,7 +1,7 @@
 # SnapBack Unification — Design
 
 Date: 2026-04-18
-Status: Draft — awaiting user approval
+Status: Reviewed (code-reviewer + second opinion) — awaiting user approval
 Target version: 1.2.0
 
 ## 1. Motivation
@@ -102,13 +102,15 @@ All mutations of `~/.config/snapback/config` go through a single shell function 
 
 ### 4.1 `config_set KEY VALUE`
 
-Shell function inside `snapback`. Contract:
+Shell function inside `snapback-lib.sh` (sourced by `snapback` and `install.sh`). Contract:
 
-- **Scalar keys** (default): rewrite the line matching `^KEY=` using `sed`. If the key is absent, append with a default-comment marker. Values are always written with double quotes (`KEY="VALUE"`), which is shell-safe for both strings and numerics (arithmetic still works under `(( ))`).
-- **Array keys** (set: `FOCUS_APPS`): awk-based rewrite of the line `FOCUS_APPS=(...)`, expanding `VALUE` as a space-separated list of pre-quoted tokens; the caller passes the array pre-formatted (`"Cursor" "Ghostty"`).
-- **Atomic**: write to a tempfile next to config, `mv` into place.
-- **Preserve**: comments, blank lines, unknown keys, and line order.
-- **Validate**: reject unknown keys unless `--allow-new` is passed; reject empty values unless the key's default empty is legal (`NOTIFICATION_SOUND=""` is legal).
+- **Rewriter is awk, not sed.** `sed 's/^KEY=.*/KEY="VALUE"/'` breaks on values containing `/`, `&`, `\`, or newlines. `config_set` uses a bash read-loop that matches `^KEY=` prefix and substitutes the whole line with a pre-built replacement; the replacement string is constructed in bash (no interpreter hops), so no metacharacter escaping is needed at substitution time.
+- **Shell-safe value escaping.** Values may contain any byte except `NUL` and newline (newlines are rejected at validation). Before writing, the value is wrapped in double quotes and the four bytes `\`, `$`, `` ` ``, `"` are backslash-escaped. This round-trips correctly under `source` (which is how runtime scripts read the config) and survives `grep`/`sed` consumers that happen to run over the file. Example: `NOTIFICATION_SOUND=/Users/a/b.mp3` is written as `NOTIFICATION_SOUND="/Users/a/b.mp3"`; `NOTIFICATION_SOUND=$HOME/x.mp3` is rejected (validator does not expand; user must pass the resolved path).
+- **Scalar keys** (default): if the key exists, replace its line in place; otherwise append `KEY="VALUE"` with a preceding comment (`# Added by snapback config set`).
+- **Array keys** (set: `FOCUS_APPS`): `config_set` is called with a pre-formatted bash-array literal in its second argument (e.g., `("Cursor" "Ghostty")`). The typed CLI wrapper `snapback focus set` builds this literal from argv and escapes each token with the same rule above. The writer substitutes the line matching `^FOCUS_APPS=` with `FOCUS_APPS=<value>` verbatim.
+- **Atomic and locked.** `flock -x` on a sibling lockfile (`~/.config/snapback/.config.lock`) for the duration of read→rewrite→rename. Write goes to `config.tmp.$$`, then `mv` into place. Concurrent `config_set` calls from CLI + menu-bar cannot race.
+- **Preserve** comments, blank lines, unknown keys, line order.
+- **Validate**: reject unknown keys unless `--allow-new` is passed; values per table below; values containing literal NL or NUL rejected.
 
 Known keys table (single source in `snapback`):
 
@@ -151,22 +153,24 @@ All typed wrappers print the new value after a successful set, for menu-bar read
   - `setFocusApps([String])` → `snapback focus set app1 app2 ...`
   - etc.
 - Each setter debounces at 200 ms; the latest value wins.
-- Keep `loadConfig()` (read path) — no shell round-trip for reads.
-- Add `startWatching()` using `DispatchSourceFileSystemObject` on the config file. On `.write | .rename | .delete` events, re-call `loadConfig()` on main queue and publish.
-- Remove hardcoded `~/Documents/Programming/AIAttention/notification.mp3` path from `playTestSound`; replace whole function with `ShellCommand.run(snapbackPath + " test")`.
+- **`loadConfig()` completeness.** Currently it does not read `FOCUS_DELAY` or `NOTIFICATION_SOUND`; add both. Harden `parseFocusApps` for the exact grammar `config_set` produces (double-quoted tokens with `\`, `$`, `` ` ``, `"` backslash-escaped). Parser is unit-tested against the set of values the writer can produce — no attempt to handle arbitrary bash.
+- **File watcher with echo suppression.** Add `startWatching()` using `DispatchSourceFileSystemObject` on the config file (also re-arming on `.rename`/`.delete` since atomic writes replace the inode). Maintain `lastOutgoingWriteAt: Date?`; every setter updates it immediately before `Process.run`. The watcher callback ignores events whose timestamp is within 500 ms of `lastOutgoingWriteAt`. This prevents slider feedback loops without dropping legitimate external edits (CLI `snapback config set` still produces an event that, while within the suppression window if the user is driving it from another terminal, will be re-read on the next change).
+- Remove hardcoded `~/Documents/Programming/AIAttention/notification.mp3` path from `playTestSound`; replace whole function with `ShellCommand.run(executable: snapbackPath, args: ["test"])`.
 
 ### 5.2 `ShellCommand`
 
-- Add a variadic `run(_ executable: String, args: [String])` that uses `Process.arguments` directly (no shell string concatenation). Keep the existing `run(_ command: String)` for lines that genuinely need a shell.
-- Menu-bar mutations must use the argv variant.
+- Add `run(executable: String, args: [String]) -> (stdout: String, stderr: String, exitCode: Int32)`. Uses `Process.arguments` directly (no shell concatenation). Existing call-sites that need a shell stay on a renamed `runShell(_:)` variant, but must pass no user-controlled input.
+- **PATH augmentation.** When spawned from Finder / LaunchAgent, `ProcessInfo.processInfo.environment["PATH"]` is macOS's short default (`/usr/bin:/bin:/usr/sbin:/sbin`, plus `/usr/local/bin` on newer systems). `snapback` itself calls `jq`; if `jq` is in `/opt/homebrew/bin`, it will fail. Every `Process` started from the app sets `environment` to a shallow-copy of `ProcessInfo`'s with `PATH` prefixed by `/opt/homebrew/bin:/usr/local/bin:$HOME/.local/bin`.
+- **Exit code surface.** `AppState` setters consume the exit code; non-zero → show a transient error banner in the menu view (one-liner at the top, auto-dismisses on next successful op). Errors never throw; they set an `@Published var lastError: String?`.
 
 ### 5.3 Snapback binary resolution
 
 Menu-bar apps don't inherit the user's shell PATH. Resolve on startup:
 
-1. If bundled `Info.plist` key `SnapBackCLIPath` is set → use it.
+1. If bundled `Info.plist` key `SnapBackCLIPath` is set → use it. (`build-app.sh` writes this at build time based on the install layout.)
 2. Else check in order: `/usr/local/bin/snapback`, `/opt/homebrew/bin/snapback`, `$HOME/.local/bin/snapback`, `$HOME/.snapback/snapback`.
-3. Cache the resolved path in `AppState`. If none found, show a one-line banner in the menu: “CLI not found — reinstall SnapBack".
+3. Resolve symlinks with `realpath` so relative working directories are unambiguous.
+4. Cache the resolved path in `AppState`. If none found, set `lastError = "SnapBack CLI not found — reinstall SnapBack"` and disable mutation controls in the UI.
 
 ### 5.4 `FocusAppsView`
 
@@ -204,11 +208,11 @@ Also: replace the end-of-installer `snapback.sh` permissions probe with a quiete
 
 ### 6.3 `snapback update`
 
-After the existing shell-script sync:
-
-- If `/Applications/SnapBack.app` exists:
-  - If Swift is available: rebuild from updated sources, copy over the bundle.
-  - Else: print warning "Menu-bar app present but Swift not available — skipping rebuild."
+- **Tarball branch fix.** Current `cmd_update` tarball branch copies only `snapback`, `snapback.sh`, `snapback-resume.sh`, `install.sh`. It must also rsync `SnapBackApp/` sources into the install directory so the menu-bar app can be (re)built. Git branch is unchanged (pulls everything).
+- **Rebuild logic.**
+  - If `/Applications/SnapBack.app` exists and Swift is available → rebuild + copy.
+  - If `/Applications/SnapBack.app` is absent and Swift is available → ask "Install menu-bar app now? [y/N]" (prompt respects existing `-y` / non-TTY behavior). This fixes the "declined at install, no path forward" issue.
+  - If Swift is unavailable → print a one-liner on how to install Command Line Tools; do not fail.
 
 ### 6.4 `snapback uninstall`
 
@@ -245,73 +249,107 @@ Refactor `install.sh setup_hooks` to use the same preserving jq expression as `c
 
 ## 9. Implementation phases
 
-Each phase is a self-contained commit/series.
+Each phase is a self-contained commit / small commit series. Tests live in `tests/` and use [bats-core](https://github.com/bats-core/bats-core) for shell coverage (`brew install bats-core` locally; phase F1 introduces it). Swift changes are verified manually — the menu-bar app is too thin to justify a Swift test harness today.
 
-### F0 — Stabilize
+### F0a — Repo hygiene + checkpoint existing CLI work
 
-- Add `.gitignore` entries.
-- `git rm --cached` for any accidentally tracked artifacts.
-- Commit the currently uncommitted `config.example`/`snapback`/`snapback.sh` changes *as-is* with message "Add VOLUME config and sound-mode fast path".
-- Commit the untracked `SnapBackApp/` sources (Package.swift, Sources/, build-app.sh) with message "Add SwiftUI menu-bar app".
+- Add `.gitignore` entries (see §6.1).
+- `git rm --cached` any accidentally tracked artifacts.
+- Commit the currently uncommitted `config.example`/`snapback`/`snapback.sh` changes *as-is* with message **"Add VOLUME config and sound-mode fast path"**.
 
-Exit criteria: `git status` is clean; no behaviour change.
+Exit criteria: `git status` clean w.r.t. shell scripts; `SnapBackApp/` still untracked; no behaviour change.
 
-### F1 — `config_set` foundation
+### F0b — Commit menu-bar sources with `saveConfig` defanged
 
-- Implement `config_set` helper in `snapback`.
+Committing `AppState.saveConfig()` as-is ships an active destructive writer (loses hand-edited `FOCUS_DELAY`, `NOTIFICATION_SOUND`) before F3 lands. To avoid that window:
+
+- Commit `SnapBackApp/` sources (Package.swift, Sources/, build-app.sh).
+- **In the same commit**, stub `saveConfig()` to `print("saveConfig: no-op until F3 lands")` and disable mutating UI controls (`.disabled(true)`) in `MenuBarView` and `FocusAppsView`. The app still launches and shows current config (read-only).
+- Commit message: **"Add SwiftUI menu-bar app (read-only pending F3)"**.
+
+This keeps the repo honest without committing known-broken writes.
+
+### F1 — `snapback-lib.sh` + `config_set` foundation
+
+- Create `snapback-lib.sh` with `config_set`, `config_get`, known-keys table, validators, flock helper.
+- Source it from `snapback` (search order: `$SCRIPT_DIR/snapback-lib.sh` → `/usr/local/share/snapback/snapback-lib.sh`).
+- Source it from `install.sh` likewise.
 - Add `snapback config get|set|show|path`.
 - Refactor `cmd_mode` to delegate to `config_set`.
-- Refactor `install.sh` config write to use `config_set` (`install.sh` will source the functions from `snapback` or inline them — decision during implementation; leaning toward sourcing from a new `snapback-lib.sh`).
-- Fix `install.sh setup_hooks` to use preserving jq.
-- Replace end-of-installer permission probe with a quiet one.
-
-Tests: set each known key via CLI; edit config by hand; re-set another key; confirm hand-edited key is preserved.
+- Refactor `install.sh` config writer to use `config_set` (+ migration: on existing config, set defaults for any missing known key via `config_set --allow-new`).
+- **Hotfix-style:** fix `install.sh setup_hooks` to use preserving jq (same filter as `cmd_on`) so users don't lose other hooks on reconfigure. This could be cherry-picked ahead of F1 if needed.
+- Replace end-of-installer permission probe with a quiet one (bare `osascript -e 'tell application "System Events" to get name of first application process whose frontmost is true'`).
+- Tests: `tests/config_set.bats` covering: preserve unknown keys, append missing keys, reject newline values, escape `\`/`$`/`` ` ``/`"` correctly, array rewrite for `FOCUS_APPS`, concurrent writes under `flock` don't corrupt.
 
 ### F2 — Typed CLI wrappers
 
 - Implement `volume`, `browser`, `focus list|add|remove|set`, `test`.
-- Update help text and bash completion (if any).
+- Update help text.
+- `snapback test` reads config, plays notification at effective volume, no side effects.
+- Tests: `tests/cli_typed.bats` for input validation and round-tripping with `config get`.
 
-Tests: each new command sets the expected key; invalid inputs are rejected with clear errors.
+### F3 — Menu-bar refactor (and re-enabling writes)
 
-### F3 — Menu-bar refactor
+**Blocked on F2** (menu-bar depends on typed CLI wrappers existing).
 
-- Kill `saveConfig`; add per-setter methods that fork-exec `snapback`.
-- Add `ShellCommand.run(argv:)` variant.
-- Add snapback binary resolution.
-- Add config file watcher.
-- Remove hardcoded notification.mp3 path; `playTestSound` → `snapback test`.
-- Add focus app reorder (chevrons).
+- Delete `saveConfig()` stub from F0b. Add per-key setters (`setVolume`, `setMode`, `setBrowser`, `setFocusApps`, `setThrottleSeconds`, `setSeekBackSeconds`).
+- Debounce 200 ms per key, latest-wins.
+- Add `ShellCommand.run(executable:args:) → (stdout, stderr, exitCode)` with PATH augmentation; add error-banner UX via `@Published lastError`.
+- Add snapback binary resolution (§5.3).
+- Extend `loadConfig()` to read `FOCUS_DELAY` and `NOTIFICATION_SOUND`.
+- Harden `parseFocusApps` for writer's escaping grammar.
+- Add `DispatchSourceFileSystemObject` watcher with 500 ms echo suppression.
+- Replace `playTestSound` with `snapback test`.
+- Re-enable mutating controls (remove `.disabled(true)`).
+- Add focus app reorder (up/down chevrons).
+- Tests: manual acceptance checklist in PR description (slider settles without drops; CLI edit reflected in UI within 1 s; test-sound works on a fresh machine).
 
-Tests: slider debouncing does not drop the final value; external config edit (via CLI) updates UI; test-sound works without the dev path.
+### F4 — Distribution + polish
 
-### F4 — Distribution
-
-- `install.sh` menu-bar install prompt + build step.
-- `snapback update` rebuilds menu-bar app when present.
+- `install.sh` menu-bar install prompt + build step (§6.2).
+- `snapback update` tarball branch copies `SnapBackApp/`; rebuild logic per §6.3.
 - `snapback uninstall` offers `/Applications/SnapBack.app` removal.
-- `snapback status` reports menu-bar state.
-
-Tests: fresh install on a clean machine (fake via `rm -rf ~/.snapback ~/.config/snapback /Applications/SnapBack.app`); update after a code change; uninstall.
-
-### F5 — Polish
-
-- `VERSION` → 1.2.0.
-- README + ROADMAP updates.
-- Final `git status` clean, changes pushed as a PR.
+- `snapback status` reports menu-bar state and effective volume.
+- `VERSION` → 1.2.0; update help text listing.
+- README: mention menu-bar app and new commands.
+- ROADMAP: tick "macOS menubar app with on/off toggle" under completed.
+- Tests: manual fresh-install + update + uninstall on a throwaway user (scripted as `tests/integration_install.sh` that operates on `$HOME` set to a tmpdir — best-effort, not CI).
 
 ## 10. Out of scope
 
-- Homebrew cask, code signing, notarization.
+- Homebrew cask, code signing, notarization. (Locally built `.app`s escape Gatekeeper quarantine; distribution of a pre-built artifact would need this — not today.)
 - Windows / Linux support.
 - Safari-specific resume (separate roadmap item).
 - VLC / Spotify / Apple Music integration (roadmap).
 - Drag-and-drop reordering of focus apps (chevrons are enough).
 - Arbitrary browser string input (typed wrapper exists; picker covers common cases).
 - Rich logging / verbose mode (roadmap).
+- Swift-side test harness (menu-bar is thin; all critical logic lives in bash and is covered by bats).
+
+### Documented platform requirements
+
+- macOS 13+ (menu-bar app `LSMinimumSystemVersion=13.0`, `Package.swift` platforms `.macOS(.v13)`).
+- Swift 5.9+ toolchain for building the menu-bar app (installed via Xcode or `xcode-select --install`).
+- CLI-only usage works on older macOS versions that can run bash + osascript.
 
 ## 11. Open questions
 
-- Should `snapback-lib.sh` exist (shared bash library sourced by `snapback` and `install.sh`), or should `install.sh` call the installed `snapback config set` to write? The former is self-contained for fresh installs; the latter is simpler but requires `snapback` to be on PATH before it writes config. **Tentative decision:** extract a `snapback-lib.sh` in F1 alongside `config_set`.
-- Menu-bar "Other browser…" free-text field: omitted now; revisit if users ask.
-- Should `snapback status` surface the effective volume as `VOLUME × system-volume`? Probably yes, small touch.
+*(all resolved during review; kept here for audit trail)*
+
+- **`snapback-lib.sh` as a shared bash library?** Yes. F1 introduces it, sourced by both `snapback` and `install.sh`. Simpler than calling the installed `snapback config set` from the installer, which would have a chicken-and-egg during first install.
+- **Menu-bar "Other browser…" free-text field:** out of scope for 1.2.0. Revisit if users ask.
+- **Should `snapback status` surface effective volume (`VOLUME × system-volume`)?** Yes. Small touch, added in F4.
+
+## 12. Risks and mitigations
+
+| Risk | Mitigation |
+|---|---|
+| `install.sh` hooks clobbering user's other hooks | F1 fixes; cherry-pickable hotfix ahead of F1 if a user reports it |
+| `saveConfig` destructiveness shipping between F0b and F3 | F0b stubs `saveConfig` to no-op + disables mutating UI |
+| Concurrent writes racing on config file | `flock` in `config_set` |
+| File-watcher feedback loop in menu-bar | 500 ms echo-suppression window tied to `lastOutgoingWriteAt` |
+| Menu-bar launched from Finder has no `$PATH` | Hardcoded CLI search list + explicit `PATH` prepend on subprocess |
+| `snapback update` via tarball doesn't include `SnapBackApp/` | F4 adds sources to tarball copy |
+| Users who declined menu-bar at install have no upgrade path | F4: `snapback update` offers install when Swift is present |
+| Existing configs missing new keys after upgrade | F1 migration: `config_set --allow-new` fills missing known keys on install run |
+| `sed` metacharacters in user values | Awk/bash read-loop writer, no sed substitution |
