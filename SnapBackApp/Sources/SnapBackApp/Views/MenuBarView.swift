@@ -2,6 +2,7 @@ import SwiftUI
 
 struct MenuBarView: View {
     @EnvironmentObject var appState: AppState
+    @ObservedObject var runtime: BridgeRuntime = BridgeRuntime.shared
     @State private var showSettings = false
 
     // Claude/Anthropic orange
@@ -46,6 +47,17 @@ struct MenuBarView: View {
             settingsSection
                 .padding(.horizontal, 16)
                 .padding(.vertical, 12)
+
+            Divider().opacity(0.3)
+
+            MobileTabView(
+                status: runtime.status,
+                onPair: { BridgeRuntime.shared.pair() },
+                onUnpair: { BridgeRuntime.shared.unpair() },
+                qrImage: runtime.pendingQRURL.flatMap { Pairing.qrImage(for: $0) }
+            )
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
 
             Divider().opacity(0.3)
 
