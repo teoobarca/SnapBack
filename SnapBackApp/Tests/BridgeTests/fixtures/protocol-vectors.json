@@ -11,7 +11,8 @@
         "ts": 1734556677,
         "nonce": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
         "payload": { "hook": "PermissionRequest" }
-      }
+      },
+      "expected_hmac_hex": "0f924aa1d14e00215b044452d475cc1602b32c8cabeb0424bbc359e262d3bb04"
     },
     {
       "name": "resume_empty_payload",
@@ -22,7 +23,8 @@
         "ts": 1734556800,
         "nonce": "00000000000000000000000000000000",
         "payload": {}
-      }
+      },
+      "expected_hmac_hex": "2d235c328c3cb992608626dde3e0f6bb046b9e2d63b78e4e42b2eab3854b3887"
     },
     {
       "name": "pong_with_hold_state",
@@ -33,7 +35,8 @@
         "ts": 1734557000,
         "nonce": "ffffffffffffffffffffffffffffffff",
         "payload": { "hold": true }
-      }
+      },
+      "expected_hmac_hex": "e1c6e4f684d351ffda0a6324bb97715d9c71b42597f94b4545aac6e92f1b9d21"
     }
   ]
 }
