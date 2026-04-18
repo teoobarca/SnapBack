@@ -40,6 +40,7 @@ Commands:
   on            Enable Claude Code hooks
   off           Disable Claude Code hooks (keeps config)
   mode [MODE]   Set mode: full (sound + focus) or sound (sound only)
+  app           Launch menu bar app for GUI configuration
   update        Update to latest version
   uninstall     Remove config and hooks completely
   help          Show this help message
@@ -390,6 +391,25 @@ cmd_update() {
 }
 
 # ============================================================
+# APP COMMAND (Menu Bar App)
+# ============================================================
+cmd_app() {
+  local app_bundle="$SCRIPT_DIR/SnapBackApp/SnapBack.app"
+  local installed_app="/Applications/SnapBack.app"
+
+  # Check if app exists
+  if [[ -d "$installed_app" ]]; then
+    open "$installed_app"
+  elif [[ -d "$app_bundle" ]]; then
+    open "$app_bundle"
+  else
+    print_error "SnapBack menu bar app not found"
+    print_info "Build it first: cd $SCRIPT_DIR/SnapBackApp && ./build-app.sh"
+    exit 1
+  fi
+}
+
+# ============================================================
 # INSTALL COMMAND
 # ============================================================
 cmd_install() {
@@ -424,6 +444,9 @@ main() {
       ;;
     mode)
       cmd_mode "$@"
+      ;;
+    app)
+      cmd_app
       ;;
     update)
       cmd_update

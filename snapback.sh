@@ -12,6 +12,7 @@ BROWSER="Google Chrome"
 THROTTLE_SECONDS=2
 NOTIFICATION_SOUND="default"
 MODE="full"
+VOLUME="1.0"
 
 # Load user config if exists
 if [[ -f "$CONFIG_FILE" ]]; then
@@ -24,6 +25,19 @@ if [[ "$NOTIFICATION_SOUND" == "default" ]]; then
 elif [[ -z "$NOTIFICATION_SOUND" ]]; then
   NOTIFICATION_SOUND=""
 fi
+
+# FAST PATH: Sound-only mode - just play sound and exit immediately
+# No throttling, no app detection, maximum speed
+if [[ "$MODE" == "sound" ]]; then
+  if [[ -n "$NOTIFICATION_SOUND" && -f "$NOTIFICATION_SOUND" ]]; then
+    sysVol=$(osascript -e "output volume of (get volume settings)" 2>/dev/null || echo 100)
+    effectiveVol=$(echo "$VOLUME * $sysVol / 100" | bc -l 2>/dev/null || echo "$VOLUME")
+    afplay -v "$effectiveVol" "$NOTIFICATION_SOUND" &
+  fi
+  exit 0
+fi
+
+# === FULL MODE BELOW ===
 
 STATE_FILE="/tmp/snapback_state"
 THROTTLE_FILE="${TMPDIR:-/tmp}/snapback_last"
@@ -51,19 +65,19 @@ lastFocusApp="${FOCUS_APPS[${#FOCUS_APPS[@]}-1]}"
 lastFocusAppLower=$(echo "$lastFocusApp" | tr '[:upper:]' '[:lower:]')
 if [[ "$frontmostLower" == "$lastFocusAppLower" ]]; then
   if [[ -n "$NOTIFICATION_SOUND" && -f "$NOTIFICATION_SOUND" ]]; then
-    afplay "$NOTIFICATION_SOUND" &
+    sysVol=$(osascript -e "output volume of (get volume settings)" 2>/dev/null || echo 100)
+    effectiveVol=$(echo "$VOLUME * $sysVol / 100" | bc -l 2>/dev/null || echo "$VOLUME")
+    afplay -v "$effectiveVol" "$NOTIFICATION_SOUND" &
   fi
   exit 0
 fi
 
 # Play sound immediately (async)
 if [[ -n "$NOTIFICATION_SOUND" && -f "$NOTIFICATION_SOUND" ]]; then
-  afplay "$NOTIFICATION_SOUND" &
-fi
-
-# If sound-only mode, exit after playing sound
-if [[ "$MODE" == "sound" ]]; then
-  exit 0
+  # Get system volume (0-100) and multiply with config volume
+  sysVol=$(osascript -e "output volume of (get volume settings)" 2>/dev/null || echo 100)
+  effectiveVol=$(echo "$VOLUME * $sysVol / 100" | bc -l 2>/dev/null || echo "$VOLUME")
+  afplay -v "$effectiveVol" "$NOTIFICATION_SOUND" &
 fi
 
 # Determine if we should save state (skip workflow apps)

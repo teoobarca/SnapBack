@@ -19,5 +19,8 @@ THROTTLE_SECONDS=2
 # Notification sound: path to .mp3 file, or empty to disable
 NOTIFICATION_SOUND="default"
 
+# Volume for notification sound (0.0 - 1.0)
+VOLUME="1.0"
+
 # Mode: "full" (sound + focus apps) or "sound" (sound only, no app switching)
 MODE="full"
