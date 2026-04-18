@@ -37,7 +37,7 @@ public final class BridgeLog {
             }
             if self.handle == nil {
                 self.handle = try? FileHandle(forWritingTo: url)
-                try? self.handle?.seekToEnd()
+                _ = try? self.handle?.seekToEnd()
             }
             self.handle?.write(Data(line.utf8))
             self.rotateIfNeeded(url: url)
@@ -65,6 +65,6 @@ public final class BridgeLog {
         _ = try? FileManager.default.moveItem(at: url, to: firstRotation)
         FileManager.default.createFile(atPath: url.path, contents: nil)
         handle = try? FileHandle(forWritingTo: url)
-        try? handle?.seekToEnd()
+        _ = try? handle?.seekToEnd()
     }
 }
