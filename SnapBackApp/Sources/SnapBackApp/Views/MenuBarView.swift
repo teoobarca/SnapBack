@@ -9,6 +9,15 @@ struct MenuBarView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
+            if let err = appState.lastError {
+                Text(err)
+                    .font(.system(size: 11))
+                    .foregroundColor(.red)
+                    .padding(.horizontal, 16)
+                    .padding(.top, 8)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+
             headerSection
                 .padding(.horizontal, 16)
                 .padding(.top, 14)
@@ -87,13 +96,12 @@ struct MenuBarView: View {
             }
 
             HStack(spacing: 8) {
-                Slider(value: $appState.volume, in: 0...1)
-                    .controlSize(.small)
-                    .tint(Self.accentColor)
-                    .onChange(of: appState.volume) { newVal in
-                        appState.setVolume(newVal)
-                    }
-                    .disabled(true)
+                Slider(value: Binding(
+                    get: { appState.volume },
+                    set: { appState.setVolume($0) }
+                ), in: 0...1)
+                .controlSize(.small)
+                .tint(Self.accentColor)
 
                 Button(action: { appState.playTestSound() }) {
                     Image(systemName: "play.fill")
@@ -101,7 +109,6 @@ struct MenuBarView: View {
                         .foregroundColor(.secondary)
                 }
                 .buttonStyle(.borderless)
-                .disabled(true)
             }
         }
     }
@@ -121,16 +128,15 @@ struct MenuBarView: View {
                 .font(.system(size: 12))
                 .foregroundColor(.secondary)
 
-            Picker("", selection: $appState.mode) {
+            Picker("", selection: Binding(
+                get: { appState.mode },
+                set: { appState.setMode($0) }
+            )) {
                 Text("Full").tag("full")
                 Text("Sound Only").tag("sound")
             }
             .pickerStyle(.segmented)
             .controlSize(.small)
-            .onChange(of: appState.mode) { newVal in
-                appState.setMode(newVal)
-            }
-            .disabled(true)
         }
     }
 
@@ -163,7 +169,10 @@ struct MenuBarView: View {
                             .font(.system(size: 11))
                             .foregroundColor(.secondary)
                         Spacer()
-                        Picker("", selection: $appState.browser) {
+                        Picker("", selection: Binding(
+                            get: { appState.browser },
+                            set: { appState.setBrowser($0) }
+                        )) {
                             Text("Chrome").tag("Google Chrome")
                             Text("Safari").tag("Safari")
                             Text("Arc").tag("Arc")
@@ -173,10 +182,6 @@ struct MenuBarView: View {
                         .labelsHidden()
                         .controlSize(.small)
                         .frame(width: 90)
-                        .onChange(of: appState.browser) { newVal in
-                            appState.setBrowser(newVal)
-                        }
-                        .disabled(true)
                     }
 
                     HStack {
@@ -184,12 +189,11 @@ struct MenuBarView: View {
                             .font(.system(size: 11))
                             .foregroundColor(.secondary)
                         Spacer()
-                        Stepper("\(appState.throttleSeconds)s", value: $appState.throttleSeconds, in: 1...10)
-                            .controlSize(.small)
-                            .onChange(of: appState.throttleSeconds) { newVal in
-                                appState.setThrottle(newVal)
-                            }
-                            .disabled(true)
+                        Stepper("\(appState.throttleSeconds)s", value: Binding(
+                            get: { appState.throttleSeconds },
+                            set: { appState.setThrottle($0) }
+                        ), in: 1...10)
+                        .controlSize(.small)
                     }
 
                     HStack {
@@ -197,12 +201,11 @@ struct MenuBarView: View {
                             .font(.system(size: 11))
                             .foregroundColor(.secondary)
                         Spacer()
-                        Stepper("\(appState.seekBackSeconds)s", value: $appState.seekBackSeconds, in: 0...5)
-                            .controlSize(.small)
-                            .onChange(of: appState.seekBackSeconds) { newVal in
-                                appState.setSeekBack(newVal)
-                            }
-                            .disabled(true)
+                        Stepper("\(appState.seekBackSeconds)s", value: Binding(
+                            get: { appState.seekBackSeconds },
+                            set: { appState.setSeekBack($0) }
+                        ), in: 0...5)
+                        .controlSize(.small)
                     }
                 }
                 .padding(.top, 10)

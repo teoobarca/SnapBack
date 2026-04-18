@@ -11,10 +11,15 @@ struct FocusAppsView: View {
                 .foregroundColor(.secondary)
 
             FlowLayout(spacing: 6) {
-                ForEach(appState.focusApps, id: \.self) { app in
-                    AppChip(name: app) {
-                        appState.removeFocusApp(app)
-                    }
+                ForEach(Array(appState.focusApps.enumerated()), id: \.element) { idx, app in
+                    AppChip(
+                        name: app,
+                        canMoveUp: idx > 0,
+                        canMoveDown: idx < appState.focusApps.count - 1,
+                        onMoveUp: { appState.moveFocusApp(app, by: -1) },
+                        onMoveDown: { appState.moveFocusApp(app, by: 1) },
+                        onRemove: { appState.removeFocusApp(app) }
+                    )
                 }
 
                 Button(action: {
@@ -29,7 +34,6 @@ struct FocusAppsView: View {
                         .background(Color.secondary.opacity(0.15), in: Capsule())
                 }
                 .buttonStyle(.plain)
-                .disabled(true)
                 .popover(isPresented: $showingPicker) {
                     appPicker
                 }
@@ -95,21 +99,39 @@ struct FocusAppsView: View {
 
 struct AppChip: View {
     let name: String
+    let canMoveUp: Bool
+    let canMoveDown: Bool
+    let onMoveUp: () -> Void
+    let onMoveDown: () -> Void
     let onRemove: () -> Void
 
     var body: some View {
         HStack(spacing: 4) {
+            if canMoveUp {
+                Button(action: onMoveUp) {
+                    Image(systemName: "chevron.up")
+                        .font(.system(size: 8, weight: .bold))
+                        .foregroundColor(.secondary)
+                }
+                .buttonStyle(.plain)
+            }
+            if canMoveDown {
+                Button(action: onMoveDown) {
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 8, weight: .bold))
+                        .foregroundColor(.secondary)
+                }
+                .buttonStyle(.plain)
+            }
             Text(name)
                 .font(.system(size: 10))
                 .lineLimit(1)
-
             Button(action: onRemove) {
                 Image(systemName: "xmark")
                     .font(.system(size: 8, weight: .bold))
                     .foregroundColor(.secondary)
             }
             .buttonStyle(.plain)
-            .disabled(true)
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 4)
