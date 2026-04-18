@@ -38,6 +38,10 @@ public final class MobilePeer {
         }
     }
 
+    /// Send a signed message to the peer. This is only valid AFTER `onStateChange(.connected)`
+    /// has fired — messages issued between `.ready` and the first verified inbound message
+    /// (the `.connected` transition is driven by inbound traffic) are silently dropped.
+    /// Phase 12's BridgeOrchestrator must gate sends on the `.connected` callback.
     public func send(_ message: ProtocolMessage) {
         queue.async {
             guard let conn = self.connection, self.state == .connected else { return }

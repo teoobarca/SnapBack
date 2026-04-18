@@ -32,6 +32,7 @@ public final class HeartbeatLoop {
 
     private func restartTimer() {
         timer?.cancel()
+        missesSinceLastPong = 0
         let t = DispatchSource.makeTimerSource(queue: queue)
         t.schedule(deadline: .now() + interval, repeating: interval)
         t.setEventHandler { [weak self] in
