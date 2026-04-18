@@ -2,7 +2,7 @@
 # SnapBack CLI - Attention manager for Claude Code
 set -euo pipefail
 
-VERSION="1.1.0"
+VERSION="1.2.0"
 # Resolve symlinks to get the actual script directory
 SOURCE="$0"
 while [[ -L "$SOURCE" ]]; do
@@ -50,18 +50,18 @@ Usage: snapback <command>
 
 Commands:
   install [-y]  Interactive installation and configuration
-  status        Check if everything is configured correctly
+  status        Check configuration and menu-bar state
   on            Enable Claude Code hooks
   off           Disable Claude Code hooks (keeps config)
-  mode [MODE]   Set mode: full (sound + focus) or sound (sound only)
+  mode [MODE]   Get/set mode: full (sound + focus) or sound (sound only)
   volume [VAL]  Get/set notification volume (0.0 - 1.0)
-  browser [NAME]  Get/set browser (e.g., "Google Chrome", Arc, Safari)
+  browser [NAME]  Get/set browser (Google Chrome, Arc, Safari, Firefox, Brave)
   focus <sub>   list | add NAME | remove NAME | set NAME1 NAME2 ...
-  config <sub>  Get/set config: get KEY | set KEY VAL | show [--json] | path
-  test          Play a notification preview at the current volume
-  app           Launch menu bar app for GUI configuration
-  update        Update to latest version
-  uninstall     Remove config and hooks completely
+  config <sub>  get KEY | set KEY VAL [--allow-new] | show [--json] | path
+  test          Play a notification preview
+  app           Launch the menu-bar app (if installed)
+  update        Update to latest version (and rebuild menu-bar app if installed)
+  uninstall     Remove config, hooks, and menu-bar app
   help          Show this help message
 
 Options:

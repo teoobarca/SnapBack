@@ -66,13 +66,34 @@ cd snapback
 ## CLI Usage
 
 ```bash
-snapback install     # Interactive installation
-snapback status      # Check if everything is configured
-snapback on          # Enable Claude Code hooks
-snapback off         # Disable hooks (keeps config)
-snapback update      # Update to latest version
-snapback uninstall   # Remove config and hooks
+snapback install [-y]        # Interactive installation and configuration
+snapback status              # Check configuration and menu-bar state
+snapback on                  # Enable Claude Code hooks
+snapback off                 # Disable Claude Code hooks (keeps config)
+snapback mode [MODE]         # Get/set mode: full (sound + focus) or sound (sound only)
+snapback volume [VAL]        # Get/set notification volume (0.0 - 1.0)
+snapback browser [NAME]      # Get/set browser (Google Chrome, Arc, Safari, Firefox, Brave)
+snapback focus list          # List focus apps
+snapback focus add NAME      # Add an app to focus list
+snapback focus remove NAME   # Remove an app from focus list
+snapback focus set N1 N2 ... # Replace the entire focus list
+snapback config get KEY      # Get a config value
+snapback config set KEY VAL  # Set a config value
+snapback config show         # Show all config values
+snapback config path         # Print config file path
+snapback test                # Play a notification preview
+snapback app                 # Launch the menu-bar app (if installed)
+snapback update              # Update to latest version (and rebuild menu-bar app if installed)
+snapback uninstall           # Remove config, hooks, and menu-bar app
 ```
+
+### Menu-bar app (optional)
+
+SnapBack ships with an optional SwiftUI menu-bar app that lets you tweak
+volume, mode, focus apps, and the Claude Code on/off switch without a
+terminal. It's built locally from source during `snapback install`
+(requires Xcode Command Line Tools / Swift 5.9+, macOS 13+). Open with
+`snapback app` or from `/Applications/SnapBack.app`.
 
 ---
 
