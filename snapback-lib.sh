@@ -18,6 +18,33 @@ _snapback_tmpdir="${_snapback_tmpdir%/}"
 unset _snapback_tmpdir
 export SNAPBACK_BRIDGE_SOCKET
 
+# Fire-and-forget poke to the mobile bridge daemon over its Unix socket.
+# Silent no-op if the socket or binary is absent. Must never fail the caller,
+# even under `set -euo pipefail`. $SCRIPT_DIR is optional; if unset, repo-local
+# fallback paths are simply skipped.
+# Args: $@ — forwarded verbatim to snapback-poke (e.g. "attention Stop").
+snapback_bridge_poke() {
+  [[ -S "$SNAPBACK_BRIDGE_SOCKET" ]] || return 0
+  local bin="" cand
+  if command -v snapback-poke >/dev/null 2>&1; then
+    bin="$(command -v snapback-poke)"
+  else
+    for cand in \
+      "/Applications/SnapBack.app/Contents/MacOS/snapback-poke" \
+      "${SCRIPT_DIR:-}/SnapBackApp/SnapBack.app/Contents/MacOS/snapback-poke" \
+      "${SCRIPT_DIR:-}/poke/build/snapback-poke"; do
+      if [[ -x "$cand" ]]; then
+        bin="$cand"
+        break
+      fi
+    done
+  fi
+  [[ -n "$bin" ]] || return 0
+  ( "$bin" "$@" >/dev/null 2>&1 ) &
+  disown 2>/dev/null || true
+  return 0
+}
+
 # Known keys table.  Values are type tags: "scalar" or "array".
 _snapback_known_keys() {
   cat <<'EOF'

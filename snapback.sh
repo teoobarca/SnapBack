@@ -37,29 +37,18 @@ _play_notification() {
 }
 
 # Bridge integration (1.3.0+): silently poke the mobile bridge daemon.
-# Fire-and-forget; zero impact when the socket is absent.
 # Runs unconditionally so both MODE=full and MODE=sound notify the phone.
-: "${SNAPBACK_BRIDGE_SOCKET:=${TMPDIR:-/tmp}/snapback-bridge.sock}"
-if [[ -S "$SNAPBACK_BRIDGE_SOCKET" ]]; then
-  _snapback_poke_bin=""
-  if command -v snapback-poke >/dev/null 2>&1; then
-    _snapback_poke_bin="$(command -v snapback-poke)"
-  else
-    for _cand in \
-      "/Applications/SnapBack.app/Contents/MacOS/snapback-poke" \
-      "$SCRIPT_DIR/SnapBackApp/SnapBack.app/Contents/MacOS/snapback-poke" \
-      "$SCRIPT_DIR/poke/build/snapback-poke"; do
-      if [[ -x "$_cand" ]]; then
-        _snapback_poke_bin="$_cand"
-        break
-      fi
-    done
-  fi
-  if [[ -n "$_snapback_poke_bin" ]]; then
-    ( "$_snapback_poke_bin" attention PermissionRequest >/dev/null 2>&1 ) &
-    disown 2>/dev/null || true
-  fi
+# Source snapback-lib.sh for the shared snapback_bridge_poke helper; if the
+# library isn't present the bridge feature is simply off and the hook continues.
+if [[ -f "$SCRIPT_DIR/snapback-lib.sh" ]]; then
+  # shellcheck source=snapback-lib.sh
+  source "$SCRIPT_DIR/snapback-lib.sh"
+elif [[ -f "/usr/local/share/snapback/snapback-lib.sh" ]]; then
+  # shellcheck disable=SC1091
+  source "/usr/local/share/snapback/snapback-lib.sh"
 fi
+command -v snapback_bridge_poke >/dev/null 2>&1 && \
+  snapback_bridge_poke attention PermissionRequest
 
 # FAST PATH: Sound-only mode - just play sound and exit immediately
 # No throttling, no app detection, maximum speed
