@@ -39,6 +39,25 @@ _snapback_escape_value() {
   printf '%s' "$v"
 }
 
+# Rewrite the line that begins with KEY= to be exactly NEW_LINE.
+# Reads the file line-by-line in bash (no sed — sed metachars in
+# NEW_LINE would break substitution).
+_snapback_rewrite_scalar() {
+  local key="$1" new_line="$2"
+  local tmp
+  tmp="$(mktemp "${SNAPBACK_CONFIG_FILE}.tmp.XXXXXX")"
+  local line replaced=0
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    if (( replaced == 0 )) && [[ "$line" == "${key}="* ]]; then
+      printf '%s\n' "$new_line" >> "$tmp"
+      replaced=1
+    else
+      printf '%s\n' "$line" >> "$tmp"
+    fi
+  done < "$SNAPBACK_CONFIG_FILE"
+  mv "$tmp" "$SNAPBACK_CONFIG_FILE"
+}
+
 # Usage: config_set KEY VALUE [--allow-new]
 config_set() {
   local key="$1" value="$2" allow_new=0
@@ -74,16 +93,16 @@ config_set() {
   [[ -f "$SNAPBACK_CONFIG_FILE" ]] || : > "$SNAPBACK_CONFIG_FILE"
 
   if [[ "$ktype" == "scalar" ]]; then
-    local escaped
+    local escaped new_line
     escaped="$(_snapback_escape_value "$value")"
-    # Does the key already exist?
+    new_line="${key}=\"${escaped}\""
+
     if grep -q "^${key}=" "$SNAPBACK_CONFIG_FILE"; then
-      # Replace path lands in F1.3.
-      echo "config_set: replace path not yet implemented" >&2
-      return 3
+      _snapback_rewrite_scalar "$key" "$new_line"
     else
-      printf '\n# Added by snapback config set\n%s="%s"\n' "$key" "$escaped" >> "$SNAPBACK_CONFIG_FILE"
+      printf '\n# Added by snapback config set\n%s\n' "$new_line" >> "$SNAPBACK_CONFIG_FILE"
     fi
+    return 0
   else
     echo "config_set: array path not yet implemented" >&2
     return 3
