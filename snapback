@@ -644,15 +644,30 @@ cmd_config() {
       if (( json )); then
         local first=1
         echo "{"
-        while read -r k _; do
+        while read -r k ktype; do
           local v
           if v=$(config_get "$k" 2>/dev/null); then
             (( first )) || echo ","
             first=0
-            # Shell-escape for JSON: minimal (no \n in values)
-            local esc="${v//\\/\\\\}"
-            esc="${esc//\"/\\\"}"
-            printf '  "%s": "%s"' "$k" "$esc"
+            if [[ "$ktype" == "array" ]]; then
+              # Emit as JSON array; config_get returns one token per line.
+              printf '  "%s": [' "$k"
+              local first_item=1
+              while IFS= read -r item; do
+                [[ -z "$item" ]] && continue
+                (( first_item )) || printf ', '
+                first_item=0
+                local esc="${item//\\/\\\\}"
+                esc="${esc//\"/\\\"}"
+                printf '"%s"' "$esc"
+              done <<< "$v"
+              printf ']'
+            else
+              # Shell-escape for JSON: minimal (no \n in values)
+              local esc="${v//\\/\\\\}"
+              esc="${esc//\"/\\\"}"
+              printf '  "%s": "%s"' "$k" "$esc"
+            fi
           fi
         done < <(_snapback_known_keys)
         echo ""

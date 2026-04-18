@@ -79,3 +79,12 @@ teardown() {
   [[ "$output" == *"Cannot remove last"* ]]
   [ "$(snapback focus list)" = "Cursor" ]
 }
+
+@test "snapback config show --json emits FOCUS_APPS as JSON array" {
+  snapback focus set "Visual Studio Code" "iTerm 2"
+  run snapback config show --json
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'"FOCUS_APPS": ['* ]]
+  [[ "$output" == *'"Visual Studio Code"'* ]]
+  [[ "$output" == *'"iTerm 2"'* ]]
+}
