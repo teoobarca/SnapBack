@@ -71,3 +71,11 @@ teardown() {
   run snapback test
   [ "$status" -eq 0 ]
 }
+
+@test "snapback focus remove refuses to empty the list" {
+  snapback focus set Cursor
+  run snapback focus remove Cursor
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"Cannot remove last"* ]]
+  [ "$(snapback focus list)" = "Cursor" ]
+}

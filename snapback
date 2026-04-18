@@ -603,6 +603,11 @@ cmd_focus() {
         print_warning "Not present: $drop"
         exit 0
       fi
+      if (( ${#kept[@]} == 0 )); then
+        print_error "Cannot remove last focus app (list would be empty)"
+        print_info "Use 'snapback focus set NAME1 NAME2 ...' to replace the whole list"
+        exit 1
+      fi
       _focus_write_array "${kept[@]+"${kept[@]}"}"
       print_success "Removed: $drop"
       ;;

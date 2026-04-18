@@ -66,6 +66,12 @@ rm -f "$RESUME_THROTTLE_FILE" 2>/dev/null || true
 frontmost=$(osascript -e 'tell application "System Events" to get name of first application process whose frontmost is true' 2>/dev/null || true)
 frontmostLower=$(echo "$frontmost" | tr '[:upper:]' '[:lower:]')
 
+# If FOCUS_APPS is empty, just play sound and exit
+if (( ${#FOCUS_APPS[@]} == 0 )); then
+  _play_notification
+  exit 0
+fi
+
 # If already in last focus app, just play sound and exit (case-insensitive comparison)
 lastFocusApp="${FOCUS_APPS[${#FOCUS_APPS[@]}-1]}"
 lastFocusAppLower=$(echo "$lastFocusApp" | tr '[:upper:]' '[:lower:]')

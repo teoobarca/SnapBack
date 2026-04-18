@@ -141,8 +141,10 @@ config_get() {
   (
     # shellcheck disable=SC1090
     source "$SNAPBACK_CONFIG_FILE" 2>/dev/null
+    # Array: use [*] with ${arr[*]+${arr[*]}} guard so set -u is safe on empty arrays.
+    # Tokens are newline-separated (one per line) to preserve tokens containing spaces.
     if declare -p "$key" 2>/dev/null | grep -q 'declare -a'; then
-      eval "printf '%s\n' \"\${${key}[*]}\""
+      eval "printf '%s\n' \"\${${key}[@]+\${${key}[@]}}\""
     else
       eval "printf '%s\n' \"\${${key}-}\""
     fi
