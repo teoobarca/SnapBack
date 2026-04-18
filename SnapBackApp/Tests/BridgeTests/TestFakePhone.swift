@@ -13,6 +13,8 @@ final class TestFakePhone {
     private(set) var failureReason: String?
     private(set) var receivedTypes: [String] = []
     private let syncQueue = DispatchQueue(label: "com.snapback.test.fakephone")
+    /// Active accepted connections — cancelled when the phone stops.
+    private var activeConnections: [NWConnection] = []
 
     init(port: UInt16 = 0, secret: Data) throws {
         self.requestedPort = port
@@ -31,9 +33,17 @@ final class TestFakePhone {
         listener?.port?.rawValue
     }
 
-    func stop() { listener?.cancel() }
+    func stop() {
+        listener?.cancel()
+        // Cancel all active connections so the peer sees an EOF / failure.
+        syncQueue.sync {
+            for conn in activeConnections { conn.cancel() }
+            activeConnections.removeAll()
+        }
+    }
 
     private func handle(_ conn: NWConnection) {
+        syncQueue.sync { activeConnections.append(conn) }
         conn.start(queue: .global(qos: .userInitiated))
         var buffer = Data()
         func loop() {
