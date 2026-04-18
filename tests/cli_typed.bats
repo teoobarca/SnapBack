@@ -138,6 +138,35 @@ teardown() {
   grep -qx 'HOOK_PROVIDERS=()' "$SNAPBACK_CONFIG_FILE"
 }
 
+@test "opencode plugin uses the canonical event names and hooks" {
+  # Regression guard against drifting back to fake event types. The
+  # authoritative names live in sst/opencode packages/plugin/src/index.ts
+  # (Hooks interface) and packages/sdk/js/src/gen/types.gen.ts (Event union).
+  mkdir -p "$TMP/xdg"
+  run env XDG_CONFIG_HOME="$TMP/xdg" BATS_TEST_DIRNAME="$BATS_TEST_DIRNAME" bash -c '
+    set -euo pipefail
+    source "$BATS_TEST_DIRNAME/../snapback-lib.sh"
+    source "$BATS_TEST_DIRNAME/../snapback-hooks.sh"
+    _snapback_hook_enable_opencode /usr/local/bin/snapback.sh /usr/local/bin/snapback-resume.sh
+  '
+  [ "$status" -eq 0 ]
+  local plugin="$TMP/xdg/opencode/plugins/snapback.js"
+  [ -f "$plugin" ]
+  # Attention via session.idle and permission.updated.
+  grep -q 'session\.idle' "$plugin"
+  grep -q 'permission\.updated' "$plugin"
+  # Resume via chat.message hook (NOT a fake tui.command.execute event).
+  grep -q '"chat\.message"' "$plugin"
+  grep -q '"tool\.execute\.after"' "$plugin"
+  # Must not carry the old, invalid names.
+  ! grep -q 'tui\.command\.execute' "$plugin"
+  ! grep -q 'permission\.asked' "$plugin"
+  # Node must parse it as valid ESM.
+  if command -v node >/dev/null 2>&1; then
+    node --check "$plugin"
+  fi
+}
+
 @test "claude hook enable preserves entries without .hooks[0].command" {
   # jq's `contains("snapback")` throws on a null — must guard with `// ""`.
   # Seed ~/.claude/settings.json with a hook entry whose command is missing,

@@ -135,6 +135,8 @@ _snapback_hook_enable_opencode() {
 
   cat > "$plugin_path" <<EOF
 // snapback-managed: do not edit manually
+// Event names verified against sst/opencode packages/plugin/src/index.ts
+// and packages/sdk/js/src/gen/types.gen.ts.
 import { spawn } from "node:child_process"
 
 const SNAPBACK_ATTENTION = "$escaped_snapback"
@@ -152,27 +154,23 @@ const run = (path) => {
 
 export const SnapBackPlugin = async (_ctx) => {
   return {
+    // Session/permission events — these are the authoritative attention
+    // signals from the opencode SDK Event union.
     event: async ({ event }) => {
       const type = event?.type
-
-      // Attention: AI needs user input.
-      if (type === "permission.asked" || type === "session.idle") {
+      if (type === "session.idle" || type === "permission.updated") {
         run(SNAPBACK_ATTENTION)
-        return
-      }
-
-      // Resume: user submitted a prompt. The TUI command payload may arrive
-      // on either \`event.data\` or \`event.properties\` depending on the
-      // opencode release; accept whichever is present.
-      if (type === "tui.command.execute") {
-        const cmd = event?.data?.command ?? event?.properties?.command
-        if (cmd === "prompt.submit" || cmd === "prompt_submit") {
-          run(SNAPBACK_RESUME)
-        }
       }
     },
-    // Resume: after every tool execution (AI is actively working).
-    "tool.execute.after": async (..._args) => {
+    // Called when a new message is received, i.e. the user just submitted
+    // a prompt and the agent is about to start working. This is the
+    // canonical "resume" trigger, not any TUI-layer command event.
+    "chat.message": async (_input, _output) => {
+      run(SNAPBACK_RESUME)
+    },
+    // Every tool invocation also resumes — covers agent-driven follow-ups
+    // inside a single turn and is a safety net if chat.message is missed.
+    "tool.execute.after": async (_input, _output) => {
       run(SNAPBACK_RESUME)
     },
   }
