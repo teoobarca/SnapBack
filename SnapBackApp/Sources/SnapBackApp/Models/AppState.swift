@@ -26,6 +26,7 @@ class AppState: ObservableObject {
     private let debounceQueue = DispatchQueue(label: "com.snapback.debounce")
 
     private var timer: Timer?
+    private var watcher: ConfigWatcher?
 
     private var configPath: String {
         let xdgConfig = ProcessInfo.processInfo.environment["XDG_CONFIG_HOME"] ?? "\(NSHomeDirectory())/.config"
@@ -40,6 +41,13 @@ class AppState: ObservableObject {
         loadConfig()
         checkHooksEnabled()
         checkLoginItemStatus()
+        watcher = ConfigWatcher(
+            path: configPath,
+            onChange: { [weak self] in
+                DispatchQueue.main.async { self?.loadConfig() }
+            },
+            lastOwnWriteAt: { [weak self] in self?.lastOutgoingWriteAt }
+        )
     }
 
     deinit {
