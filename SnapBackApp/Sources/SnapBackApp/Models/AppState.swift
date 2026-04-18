@@ -116,7 +116,7 @@ class AppState: ObservableObject {
     func toggleEnabled() {
         let command = isEnabled ? "off" : "on"
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            ShellCommand.run("snapback \(command)")
+            ShellCommand.runShell("snapback \(command)")
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                 self?.checkHooksEnabled()
             }
@@ -175,12 +175,12 @@ class AppState: ObservableObject {
 
             for path in soundPaths {
                 if FileManager.default.fileExists(atPath: path) {
-                    ShellCommand.run("effectiveVol=$(\(volumeCmd)); afplay -v \"$effectiveVol\" '\(path)'")
+                    ShellCommand.runShell("effectiveVol=$(\(volumeCmd)); afplay -v \"$effectiveVol\" '\(path)'")
                     return
                 }
             }
 
-            ShellCommand.run("effectiveVol=$(\(volumeCmd)); afplay -v \"$effectiveVol\" /System/Library/Sounds/Ping.aiff")
+            ShellCommand.runShell("effectiveVol=$(\(volumeCmd)); afplay -v \"$effectiveVol\" /System/Library/Sounds/Ping.aiff")
         }
     }
 
