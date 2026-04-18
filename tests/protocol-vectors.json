@@ -1,0 +1,39 @@
+{
+  "v": 1,
+  "secret_hex": "4242424242424242424242424242424242424242424242424242424242424242",
+  "vectors": [
+    {
+      "name": "attention_permission_request",
+      "direction": "c2s",
+      "message": {
+        "v": 1,
+        "type": "attention",
+        "ts": 1734556677,
+        "nonce": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "payload": { "hook": "PermissionRequest" }
+      }
+    },
+    {
+      "name": "resume_empty_payload",
+      "direction": "c2s",
+      "message": {
+        "v": 1,
+        "type": "resume",
+        "ts": 1734556800,
+        "nonce": "00000000000000000000000000000000",
+        "payload": {}
+      }
+    },
+    {
+      "name": "pong_with_hold_state",
+      "direction": "s2c",
+      "message": {
+        "v": 1,
+        "type": "pong",
+        "ts": 1734557000,
+        "nonce": "ffffffffffffffffffffffffffffffff",
+        "payload": { "hold": true }
+      }
+    }
+  ]
+}
