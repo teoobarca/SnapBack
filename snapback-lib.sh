@@ -128,3 +128,23 @@ config_set() {
 
   rmdir "$lockdir" 2>/dev/null
 }
+
+# Usage: config_get KEY
+# Prints the value (unquoted) and returns 0 if the key is set; prints
+# nothing and returns 1 if the key is absent.
+config_get() {
+  local key="$1"
+  [[ -f "$SNAPBACK_CONFIG_FILE" ]] || return 1
+  local found
+  found=$(grep -c "^${key}=" "$SNAPBACK_CONFIG_FILE" || true)
+  [[ "$found" -gt 0 ]] || return 1
+  (
+    # shellcheck disable=SC1090
+    source "$SNAPBACK_CONFIG_FILE" 2>/dev/null
+    if declare -p "$key" 2>/dev/null | grep -q 'declare -a'; then
+      eval "printf '%s\n' \"\${${key}[*]}\""
+    else
+      eval "printf '%s\n' \"\${${key}-}\""
+    fi
+  )
+}

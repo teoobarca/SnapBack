@@ -63,3 +63,29 @@ teardown() {
   grep -qx 'MODE="sound"' "$SNAPBACK_CONFIG_FILE"
   grep -qx 'VOLUME="0.5"' "$SNAPBACK_CONFIG_FILE"
 }
+
+@test "config_get returns a scalar value unquoted" {
+  printf 'MODE="sound"\n' > "$SNAPBACK_CONFIG_FILE"
+  run config_get MODE
+  [ "$status" -eq 0 ]
+  [ "$output" = "sound" ]
+}
+
+@test "config_get returns empty for absent key with status 1" {
+  : > "$SNAPBACK_CONFIG_FILE"
+  run config_get MODE
+  [ "$status" -eq 1 ]
+  [ -z "$output" ]
+}
+
+@test "config_set rejects unknown key without --allow-new" {
+  run config_set FROB bar
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"unknown key"* ]]
+}
+
+@test "config_set rejects newline in value" {
+  run config_set MODE $'line1\nline2'
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"newline"* ]]
+}
