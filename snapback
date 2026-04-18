@@ -95,8 +95,8 @@ cmd_status() {
   if [[ -f "$CONFIG_FILE" ]]; then
     print_success "Config exists: $CONFIG_FILE"
     source "$CONFIG_FILE"
-    print_info "  Focus apps: ${FOCUS_APPS[*]}"
-    print_info "  Browser: $BROWSER"
+    print_info "  Focus apps: ${FOCUS_APPS[*]:-<unset>}"
+    print_info "  Browser: ${BROWSER:-<unset>}"
     local current_mode="${MODE:-full}"
     if [[ "$current_mode" == "sound" ]]; then
       print_info "  Mode: sound (no app switching)"

@@ -147,8 +147,14 @@ if [[ "$skip_config" == "false" ]]; then
   print_info "Edit this file for advanced settings (delays, sounds, etc.)"
 fi
 
-# Migrate: ensure all known keys exist in an existing config.
+# Migrate: ensure all known keys exist with sensible defaults.
 if [[ "$skip_config" == "true" ]]; then
+  config_get FOCUS_APPS >/dev/null || config_set FOCUS_APPS '("Cursor" "Ghostty")' --allow-new
+  config_get FOCUS_DELAY >/dev/null || config_set FOCUS_DELAY "0.5" --allow-new
+  config_get BROWSER >/dev/null || config_set BROWSER "Google Chrome" --allow-new
+  config_get SEEK_BACK_SECONDS >/dev/null || config_set SEEK_BACK_SECONDS "1" --allow-new
+  config_get THROTTLE_SECONDS >/dev/null || config_set THROTTLE_SECONDS "2" --allow-new
+  config_get NOTIFICATION_SOUND >/dev/null || config_set NOTIFICATION_SOUND "default" --allow-new
   config_get VOLUME >/dev/null || config_set VOLUME "1.0" --allow-new
   config_get MODE >/dev/null || config_set MODE "full" --allow-new
 fi
