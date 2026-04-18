@@ -53,4 +53,8 @@ final class SnapBackCLI {
     func test() -> ShellResult? { run(["test"]) }
     func on() -> ShellResult? { run(["on"]) }
     func off() -> ShellResult? { run(["off"]) }
+    func hooksAdd(_ provider: String) -> ShellResult? { run(["hooks", "add", provider]) }
+    func hooksRemove(_ provider: String) -> ShellResult? { run(["hooks", "remove", provider]) }
+    func hooksApply() -> ShellResult? { run(["hooks", "apply"]) }
+    func hooksStatusJSON() -> ShellResult? { run(["hooks", "status", "--json"]) }
 }

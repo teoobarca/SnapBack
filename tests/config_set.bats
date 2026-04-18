@@ -97,3 +97,8 @@ teardown() {
   [ "$status" -ne 0 ]
   [ ! -d "${SNAPBACK_CONFIG_FILE}.lock.d" ]
 }
+
+@test "config_set supports HOOK_PROVIDERS array" {
+  config_set HOOK_PROVIDERS '("claude" "opencode")' --allow-new
+  grep -qx 'HOOK_PROVIDERS=("claude" "opencode")' "$SNAPBACK_CONFIG_FILE"
+}

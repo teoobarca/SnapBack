@@ -4,7 +4,7 @@ import ServiceManagement
 
 class AppState: ObservableObject {
     @Published var isEnabled: Bool = false
-    @Published var mode: String = "full"
+    @Published var mode: String = "both"
     @Published var volume: Double = 1.0
     @Published var focusApps: [String] = []
     @Published var browser: String = "Google Chrome"
@@ -16,6 +16,8 @@ class AppState: ObservableObject {
     @Published var runningApps: [String] = []
     @Published var startAtLogin: Bool = false
     @Published var lastError: String? = nil
+    @Published var hookClaude: Bool = true
+    @Published var hookOpenCode: Bool = false
 
     let cli = SnapBackCLI()
 
@@ -31,10 +33,6 @@ class AppState: ObservableObject {
     private var configPath: String {
         let xdgConfig = ProcessInfo.processInfo.environment["XDG_CONFIG_HOME"] ?? "\(NSHomeDirectory())/.config"
         return "\(xdgConfig)/snapback/config"
-    }
-
-    private var claudeSettingsPath: String {
-        "\(NSHomeDirectory())/.claude/settings.json"
     }
 
     init() {
@@ -63,7 +61,7 @@ class AppState: ObservableObject {
             if trimmed.hasPrefix("#") || trimmed.isEmpty { continue }
 
             if let match = parseConfigLine(trimmed, key: "MODE") {
-                mode = match
+                mode = (match == "full") ? "both" : match
             } else if let match = parseConfigLine(trimmed, key: "VOLUME") {
                 volume = Double(match) ?? 1.0
             } else if let match = parseConfigLine(trimmed, key: "BROWSER") {
@@ -253,15 +251,72 @@ class AppState: ObservableObject {
     func checkHooksEnabled() {
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let self = self else { return }
-            guard let content = try? String(contentsOfFile: self.claudeSettingsPath, encoding: .utf8) else {
+            guard let result = self.cli.hooksStatusJSON(), result.exitCode == 0 else {
                 DispatchQueue.main.async {
                     self.isEnabled = false
+                    self.hookClaude = false
+                    self.hookOpenCode = false
                 }
                 return
             }
-            let enabled = content.contains("snapback.sh")
+
+            var selectedClaude = false
+            var selectedOpenCode = false
+            if let data = result.stdout.data(using: .utf8),
+               let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let selected = obj["selected"] as? [String] {
+                selectedClaude = selected.contains("claude")
+                selectedOpenCode = selected.contains("opencode")
+            }
+
+            var enabled = false
+            if let data = result.stdout.data(using: .utf8),
+               let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let flag = obj["enabled"] as? Bool {
+                enabled = flag
+            }
             DispatchQueue.main.async {
                 self.isEnabled = enabled
+                self.hookClaude = selectedClaude
+                self.hookOpenCode = selectedOpenCode
+            }
+        }
+    }
+
+    func toggleHookClaude(_ enabled: Bool) {
+        hookClaude = enabled
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self = self else { return }
+            let selectionResult = enabled ? self.cli.hooksAdd("claude") : self.cli.hooksRemove("claude")
+            let applyResult = (selectionResult?.exitCode == 0) ? self.cli.hooksApply() : selectionResult
+            DispatchQueue.main.async {
+                if applyResult == nil { self.lastError = "SnapBack CLI not found" }
+                else if applyResult!.exitCode != 0 {
+                    let msg = applyResult!.stderr.trimmingCharacters(in: .whitespacesAndNewlines)
+                    self.lastError = msg.isEmpty ? "hooks: exit \(applyResult!.exitCode)" : "hooks: \(msg)"
+                } else {
+                    self.lastError = nil
+                }
+                self.checkHooksEnabled()
+            }
+        }
+    }
+
+    func toggleHookOpenCode(_ enabled: Bool) {
+        hookOpenCode = enabled
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self = self else { return }
+            let selectionResult = enabled ? self.cli.hooksAdd("opencode") : self.cli.hooksRemove("opencode")
+            let applyResult = (selectionResult?.exitCode == 0) ? self.cli.hooksApply() : selectionResult
+            DispatchQueue.main.async {
+                if applyResult == nil { self.lastError = "SnapBack CLI not found" }
+                else if applyResult!.exitCode != 0 {
+                    let msg = applyResult!.stderr.trimmingCharacters(in: .whitespacesAndNewlines)
+                    self.lastError = msg.isEmpty ? "hooks: exit \(applyResult!.exitCode)" : "hooks: \(msg)"
+                } else {
+                    self.lastError = nil
+                }
+                self.checkHooksEnabled()
             }
         }
     }

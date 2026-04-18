@@ -11,7 +11,7 @@ FOCUS_DELAY=0.5
 BROWSER="Google Chrome"
 THROTTLE_SECONDS=2
 NOTIFICATION_SOUND="default"
-MODE="full"
+MODE="both"
 VOLUME="1.0"
 
 # Load user config if exists
@@ -36,14 +36,25 @@ _play_notification() {
   afplay -v "$effectiveVol" "$NOTIFICATION_SOUND" &
 }
 
+# Normalize mode (backward-compatible: "full" => "both")
+MODE_NORMALIZED="$MODE"
+if [[ "$MODE_NORMALIZED" == "full" ]]; then
+  MODE_NORMALIZED="both"
+fi
+
+PLAY_SOUND=1
+if [[ "$MODE_NORMALIZED" == "switches" ]]; then
+  PLAY_SOUND=0
+fi
+
 # FAST PATH: Sound-only mode - just play sound and exit immediately
 # No throttling, no app detection, maximum speed
-if [[ "$MODE" == "sound" ]]; then
+if [[ "$MODE_NORMALIZED" == "sound" ]]; then
   _play_notification
   exit 0
 fi
 
-# === FULL MODE BELOW ===
+# === SWITCH/BOTH MODE BELOW ===
 
 STATE_FILE="/tmp/snapback_state"
 THROTTLE_FILE="${TMPDIR:-/tmp}/snapback_last"
@@ -68,7 +79,7 @@ frontmostLower=$(echo "$frontmost" | tr '[:upper:]' '[:lower:]')
 
 # If FOCUS_APPS is empty, just play sound and exit
 if (( ${#FOCUS_APPS[@]} == 0 )); then
-  _play_notification
+  (( PLAY_SOUND == 1 )) && _play_notification
   exit 0
 fi
 
@@ -76,12 +87,12 @@ fi
 lastFocusApp="${FOCUS_APPS[${#FOCUS_APPS[@]}-1]}"
 lastFocusAppLower=$(echo "$lastFocusApp" | tr '[:upper:]' '[:lower:]')
 if [[ "$frontmostLower" == "$lastFocusAppLower" ]]; then
-  _play_notification
+  (( PLAY_SOUND == 1 )) && _play_notification
   exit 0
 fi
 
 # Play sound immediately (async)
-_play_notification
+(( PLAY_SOUND == 1 )) && _play_notification
 
 # Determine if we should save state (skip workflow apps)
 saveState=""

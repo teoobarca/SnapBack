@@ -1,5 +1,5 @@
 #!/bin/bash
-# SnapBack CLI - Attention manager for Claude Code
+# SnapBack CLI - Attention manager for coding agents
 set -euo pipefail
 
 VERSION="1.2.0"
@@ -25,9 +25,17 @@ else
   exit 1
 fi
 
+# Load hook provider operations.
+if [[ -f "$SCRIPT_DIR/snapback-hooks.sh" ]]; then
+  # shellcheck source=snapback-hooks.sh
+  source "$SCRIPT_DIR/snapback-hooks.sh"
+else
+  echo "error: snapback-hooks.sh not found" >&2
+  exit 1
+fi
+
 # Align lib's config path with the CLI's.
 SNAPBACK_CONFIG_FILE="$CONFIG_FILE"
-CLAUDE_SETTINGS="$HOME/.claude/settings.json"
 
 # Colors
 RED='\033[0;31m'
@@ -44,22 +52,26 @@ print_info() { echo -e "${BLUE}→${NC} $1"; }
 
 show_help() {
   cat <<EOF
-SnapBack v${VERSION} - Attention manager for Claude Code
+SnapBack v${VERSION} - Attention manager for coding agents
 
 Usage: snapback <command>
 
 Commands:
   install [-y]  Interactive installation and configuration
   status        Check configuration and menu-bar state
-  on            Enable Claude Code hooks
-  off           Disable Claude Code hooks (keeps config)
-  mode [MODE]   Get/set mode: full (sound + focus) or sound (sound only)
+  on            Enable hooks for selected providers
+  off           Disable hooks for selected providers
+  hooks <sub>   list | get | set none|all|PROVIDER [PROVIDER ...]
+                add all|PROVIDER [PROVIDER ...] | remove all|PROVIDER [PROVIDER ...]
+                apply | status [--json]
+                (providers: claude, opencode)
+  mode [MODE]   Get/set mode: both | switches | sound
   volume [VAL]  Get/set notification volume (0.0 - 1.0)
   browser [NAME]  Get/set browser (Google Chrome, Arc, Safari, Firefox, Brave)
   focus <sub>   list | add NAME | remove NAME | set NAME1 NAME2 ...
   config <sub>  get KEY | set KEY VAL [--allow-new] | show [--json] | path
   test          Play a notification preview
-  app           Launch the menu-bar app (if installed)
+  app [SUB]     open (default) | install (build + install + launch)
   update        Update to latest version (and rebuild menu-bar app if installed)
   uninstall     Remove config, hooks, and menu-bar app
   help          Show this help message
@@ -70,10 +82,12 @@ Options:
 Examples:
   snapback install      # First-time setup
   snapback install -y   # Install with defaults
-  snapback status       # Check configuration
+  snapback status       # Check configuration and providers
   snapback off          # Temporarily disable
-  snapback mode sound   # Sound only, no app switching
-  snapback mode full    # Sound + app switching (default)
+  snapback hooks set all  # Enable all supported providers
+  snapback mode sound      # Sound only, no app switching
+  snapback mode switches   # App switching only, no sound
+  snapback mode both       # Sound + app switching (default)
   snapback update       # Get latest version
 
 More info: https://github.com/teoobarca/snapback
@@ -97,11 +111,14 @@ cmd_status() {
     source "$CONFIG_FILE"
     print_info "  Focus apps: ${FOCUS_APPS[*]:-<unset>}"
     print_info "  Browser: ${BROWSER:-<unset>}"
-    local current_mode="${MODE:-full}"
+    local current_mode="${MODE:-both}"
+    [[ "$current_mode" == "full" ]] && current_mode="both"
     if [[ "$current_mode" == "sound" ]]; then
       print_info "  Mode: sound (no app switching)"
+    elif [[ "$current_mode" == "switches" ]]; then
+      print_info "  Mode: switches (app switching only, no sound)"
     else
-      print_info "  Mode: full (sound + app switching)"
+      print_info "  Mode: both (sound + app switching)"
     fi
   else
     print_error "Config not found: $CONFIG_FILE"
@@ -123,17 +140,23 @@ cmd_status() {
     all_ok=false
   fi
 
-  # Check Claude settings
-  if [[ -f "$CLAUDE_SETTINGS" ]]; then
-    if grep -q "snapback.sh" "$CLAUDE_SETTINGS" 2>/dev/null; then
-      print_success "Claude Code hooks are configured"
-    else
-      print_warning "Claude settings exist but hooks not found"
-      all_ok=false
-    fi
+  # Hook providers
+  local selected_providers
+  selected_providers="$(snapback_hooks_selected_csv 2>/dev/null || echo "none")"
+  if [[ "$selected_providers" == "none" ]]; then
+    print_info "Hook providers: none (hooks disabled by config)"
   else
-    print_error "Claude settings not found: $CLAUDE_SETTINGS"
-    all_ok=false
+    print_info "Hook providers: $selected_providers"
+    local line provider state detail
+    while IFS=$'\t' read -r provider state detail; do
+      if [[ "$state" == "enabled" ]]; then
+        print_success "$provider hooks enabled"
+      else
+        print_warning "$provider hooks $state"
+        print_info "  $detail"
+        all_ok=false
+      fi
+    done < <(snapback_hooks_status_human)
   fi
 
   # Check macOS permissions
@@ -188,73 +211,25 @@ cmd_status() {
 # ON/OFF COMMANDS
 # ============================================================
 cmd_on() {
-  if [[ ! -f "$CLAUDE_SETTINGS" ]]; then
-    print_error "Claude settings not found. Run 'snapback install' first."
+  if snapback_hooks_apply_selected "$SCRIPT_DIR/snapback.sh" "$SCRIPT_DIR/snapback-resume.sh"; then
+    print_success "Hooks enabled for selected providers"
+    print_info "Configured providers: $(snapback_hooks_selected_csv)"
+    print_info "Restart your coding agent(s) to apply changes"
+  else
+    print_error "Failed to enable one or more providers"
     exit 1
   fi
-
-  if ! command -v jq &>/dev/null; then
-    print_error "jq is required. Install with: brew install jq"
-    exit 1
-  fi
-
-  # Check if hooks already exist
-  if grep -q "snapback.sh" "$CLAUDE_SETTINGS" 2>/dev/null; then
-    print_warning "Hooks are already enabled"
-    exit 0
-  fi
-
-  # Add hooks (preserve existing hooks from other tools)
-  local tmp=$(mktemp)
-  jq --arg snapback "$SCRIPT_DIR/snapback.sh" --arg resume "$SCRIPT_DIR/snapback-resume.sh" '
-    # Add to PermissionRequest (preserve others)
-    .hooks.PermissionRequest = ((.hooks.PermissionRequest // []) | map(select(.hooks[0].command | contains("snapback") | not))) + [{"matcher": "*", "hooks": [{"type": "command", "command": $snapback}]}] |
-    # Add to Stop (preserve others)
-    .hooks.Stop = ((.hooks.Stop // []) | map(select(.hooks[0].command | contains("snapback") | not))) + [{"hooks": [{"type": "command", "command": $snapback}]}] |
-    # Add to PostToolUse (preserve others)
-    .hooks.PostToolUse = ((.hooks.PostToolUse // []) | map(select(.hooks[0].command | contains("snapback") | not))) + [{"matcher": "Edit|Write|Bash", "hooks": [{"type": "command", "command": $resume}]}] |
-    # Add to UserPromptSubmit (preserve others)
-    .hooks.UserPromptSubmit = ((.hooks.UserPromptSubmit // []) | map(select(.hooks[0].command | contains("snapback") | not))) + [{"hooks": [{"type": "command", "command": $resume}]}]
-  ' "$CLAUDE_SETTINGS" > "$tmp" && mv "$tmp" "$CLAUDE_SETTINGS"
-
-  print_success "Hooks enabled"
-  print_info "Restart Claude Code to apply changes"
 }
 
 cmd_off() {
-  if [[ ! -f "$CLAUDE_SETTINGS" ]]; then
-    print_warning "Claude settings not found. Nothing to disable."
-    exit 0
-  fi
-
-  if ! command -v jq &>/dev/null; then
-    print_error "jq is required. Install with: brew install jq"
+  if snapback_hooks_disable_selected; then
+    print_success "Hooks disabled for selected providers"
+    print_info "Configured providers: $(snapback_hooks_selected_csv)"
+    print_info "Restart your coding agent(s) to apply changes"
+  else
+    print_error "Failed to disable one or more providers"
     exit 1
   fi
-
-  # Check if hooks exist
-  if ! grep -q "snapback.sh" "$CLAUDE_SETTINGS" 2>/dev/null; then
-    print_warning "Hooks are already disabled"
-    exit 0
-  fi
-
-  # Remove snapback hooks
-  local tmp=$(mktemp)
-  jq '
-    .hooks.PermissionRequest = ((.hooks.PermissionRequest // []) | map(select(.hooks[0].command | contains("snapback") | not))) |
-    .hooks.Stop = ((.hooks.Stop // []) | map(select(.hooks[0].command | contains("snapback") | not))) |
-    .hooks.PostToolUse = ((.hooks.PostToolUse // []) | map(select(.hooks[0].command | contains("snapback") | not))) |
-    .hooks.UserPromptSubmit = ((.hooks.UserPromptSubmit // []) | map(select(.hooks[0].command | contains("snapback") | not))) |
-    # Clean up empty arrays
-    if .hooks.PermissionRequest == [] then del(.hooks.PermissionRequest) else . end |
-    if .hooks.Stop == [] then del(.hooks.Stop) else . end |
-    if .hooks.PostToolUse == [] then del(.hooks.PostToolUse) else . end |
-    if .hooks.UserPromptSubmit == [] then del(.hooks.UserPromptSubmit) else . end |
-    if .hooks == {} then del(.hooks) else . end
-  ' "$CLAUDE_SETTINGS" > "$tmp" && mv "$tmp" "$CLAUDE_SETTINGS"
-
-  print_success "Hooks disabled"
-  print_info "Restart Claude Code to apply changes"
 }
 
 # ============================================================
@@ -272,24 +247,32 @@ cmd_mode() {
   # If no argument, show current mode
   if [[ -z "$mode" ]]; then
     source "$CONFIG_FILE"
-    local current_mode="${MODE:-full}"
+    local current_mode="${MODE:-both}"
+    [[ "$current_mode" == "full" ]] && current_mode="both"
     echo ""
     echo "Current mode: $current_mode"
     if [[ "$current_mode" == "sound" ]]; then
       print_info "Sound only - no app switching"
+    elif [[ "$current_mode" == "switches" ]]; then
+      print_info "App switching only - no sound"
     else
-      print_info "Full mode - sound + app switching"
+      print_info "Both - sound + app switching"
     fi
     echo ""
-    echo "Change with: snapback mode <full|sound>"
+    echo "Change with: snapback mode <both|switches|sound>"
     echo ""
     exit 0
   fi
 
+  # Backward compatibility alias
+  if [[ "$mode" == "full" ]]; then
+    mode="both"
+  fi
+
   # Validate mode
-  if [[ "$mode" != "full" && "$mode" != "sound" ]]; then
+  if [[ "$mode" != "both" && "$mode" != "switches" && "$mode" != "sound" ]]; then
     print_error "Invalid mode: $mode"
-    print_info "Valid modes: full, sound"
+    print_info "Valid modes: both, switches, sound"
     exit 1
   fi
 
@@ -301,8 +284,10 @@ cmd_mode() {
   print_success "Mode set to: $mode"
   if [[ "$mode" == "sound" ]]; then
     print_info "Sound only - no app switching"
+  elif [[ "$mode" == "switches" ]]; then
+    print_info "App switching only - no sound"
   else
-    print_info "Full mode - sound + app switching"
+    print_info "Both - sound + app switching"
   fi
 }
 
@@ -315,17 +300,15 @@ cmd_uninstall() {
   echo "──────────────────"
   echo ""
 
-  read -p "This will remove config and Claude hooks. Continue? [y/N]: " confirm
+  read -p "This will remove config and SnapBack hooks. Continue? [y/N]: " confirm
   if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
     echo "Cancelled."
     exit 0
   fi
 
-  # Remove hooks first
-  if [[ -f "$CLAUDE_SETTINGS" ]] && command -v jq &>/dev/null; then
-    if grep -q "snapback" "$CLAUDE_SETTINGS" 2>/dev/null; then
-      cmd_off
-    fi
+  # Remove hooks from all providers first.
+  if ! snapback_hooks_disable_all; then
+    print_warning "Some providers could not be disabled cleanly"
   fi
 
   # Remove config
@@ -423,6 +406,7 @@ cmd_update() {
       cp "$tmp_dir/snapback.sh" "$install_dir/"
       cp "$tmp_dir/snapback-resume.sh" "$install_dir/"
       cp "$tmp_dir/snapback-lib.sh" "$install_dir/"
+      cp "$tmp_dir/snapback-hooks.sh" "$install_dir/"
       cp "$tmp_dir/install.sh" "$install_dir/"
       cp "$tmp_dir/notification.mp3" "$install_dir/" 2>/dev/null || true
       rm -rf "$install_dir/SnapBackApp"
@@ -494,19 +478,63 @@ cmd_update() {
 # APP COMMAND (Menu Bar App)
 # ============================================================
 cmd_app() {
+  local sub="${1:-open}"
   local app_bundle="$SCRIPT_DIR/SnapBackApp/SnapBack.app"
+  local app_dir="$SCRIPT_DIR/SnapBackApp"
   local installed_app="/Applications/SnapBack.app"
 
-  # Check if app exists
-  if [[ -d "$installed_app" ]]; then
-    open "$installed_app"
-  elif [[ -d "$app_bundle" ]]; then
-    open "$app_bundle"
-  else
-    print_error "SnapBack menu bar app not found"
-    print_info "Build it first: cd $SCRIPT_DIR/SnapBackApp && ./build-app.sh"
-    exit 1
-  fi
+  case "$sub" in
+    open)
+      if [[ -d "$installed_app" ]]; then
+        open "$installed_app"
+      elif [[ -d "$app_bundle" ]]; then
+        open "$app_bundle"
+      else
+        print_error "SnapBack menu bar app not found"
+        print_info "Run: snapback app install"
+        exit 1
+      fi
+      ;;
+    install|rebuild)
+      if [[ ! -d "$app_dir" ]] || [[ ! -x "$app_dir/build-app.sh" ]]; then
+        print_error "SnapBackApp build files not found in $app_dir"
+        exit 1
+      fi
+
+      if ! command -v swift >/dev/null 2>&1; then
+        print_error "Swift is required to build the menu-bar app"
+        print_info "Install Xcode Command Line Tools: xcode-select --install"
+        exit 1
+      fi
+
+      print_info "Building menu-bar app..."
+      (
+        cd "$app_dir"
+        export SNAPBACK_CLI_PATH=""
+        local p
+        for p in "$HOME/.local/bin/snapback" /opt/homebrew/bin/snapback /usr/local/bin/snapback; do
+          if [[ -x "$p" ]]; then SNAPBACK_CLI_PATH="$p"; break; fi
+        done
+        ./build-app.sh
+      )
+
+      print_info "Installing to /Applications/SnapBack.app ..."
+      if [[ -w /Applications ]]; then
+        rm -rf "$installed_app"
+        cp -R "$app_bundle" "$installed_app"
+      else
+        sudo rm -rf "$installed_app"
+        sudo cp -R "$app_bundle" "$installed_app"
+      fi
+
+      print_success "Installed and launching SnapBack.app"
+      open "$installed_app"
+      ;;
+    *)
+      print_error "Usage: snapback app [open|install]"
+      exit 2
+      ;;
+  esac
 }
 
 # ============================================================
@@ -618,6 +646,96 @@ cmd_focus() {
       ;;
     *)
       print_error "Unknown focus subcommand: $sub"
+      exit 2
+      ;;
+  esac
+}
+
+# ============================================================
+# HOOKS COMMAND
+# ============================================================
+cmd_hooks() {
+  local sub="${1:-status}"
+  shift || true
+
+  case "$sub" in
+    list)
+      snapback_hooks_list_available
+      ;;
+    get)
+      snapback_hooks_selected_csv
+      ;;
+    set)
+      [[ $# -ge 1 ]] || {
+        print_error "Usage: snapback hooks set none|all|PROVIDER [PROVIDER ...]"
+        exit 2
+      }
+      if snapback_hooks_set_selected "$@"; then
+        print_success "Hook providers set to: $(snapback_hooks_selected_csv)"
+        print_info "Run 'snapback hooks apply' to activate changes"
+      else
+        exit $?
+      fi
+      ;;
+    add)
+      [[ $# -ge 1 ]] || {
+        print_error "Usage: snapback hooks add all|PROVIDER [PROVIDER ...]"
+        exit 2
+      }
+      if snapback_hooks_add_selected "$@"; then
+        print_success "Hook providers set to: $(snapback_hooks_selected_csv)"
+        print_info "Run 'snapback hooks apply' to activate changes"
+      else
+        exit $?
+      fi
+      ;;
+    remove)
+      [[ $# -ge 1 ]] || {
+        print_error "Usage: snapback hooks remove all|PROVIDER [PROVIDER ...]"
+        exit 2
+      }
+      if snapback_hooks_remove_selected "$@"; then
+        print_success "Hook providers set to: $(snapback_hooks_selected_csv)"
+        print_info "Run 'snapback hooks apply' to activate changes"
+      else
+        exit $?
+      fi
+      ;;
+    apply)
+      if snapback_hooks_apply_selected "$SCRIPT_DIR/snapback.sh" "$SCRIPT_DIR/snapback-resume.sh"; then
+        print_success "Applied providers: $(snapback_hooks_selected_csv)"
+      else
+        exit $?
+      fi
+      ;;
+    status)
+      if [[ "${1:-}" == "--json" ]]; then
+        snapback_hooks_status_json
+      else
+        local selected
+        selected="$(snapback_hooks_selected_csv)"
+        print_info "Selected providers: $selected"
+        if [[ "$selected" == "none" ]]; then
+          print_warning "No providers selected"
+          exit 0
+        fi
+        local line p state detail
+        while IFS=$'\t' read -r p state detail; do
+          if [[ "$state" == "enabled" ]]; then
+            print_success "$p: enabled"
+          else
+            print_warning "$p: $state"
+            print_info "  $detail"
+          fi
+        done < <(snapback_hooks_status_human)
+      fi
+      ;;
+    "")
+      print_error "Usage: snapback hooks <list|get|set|add|remove|apply|status>"
+      exit 2
+      ;;
+    *)
+      print_error "Unknown hooks subcommand: $sub"
       exit 2
       ;;
   esac
@@ -766,6 +884,9 @@ main() {
     focus)
       cmd_focus "$@"
       ;;
+    hooks)
+      cmd_hooks "$@"
+      ;;
     config)
       cmd_config "$@"
       ;;
@@ -773,7 +894,7 @@ main() {
       cmd_test
       ;;
     app)
-      cmd_app
+      cmd_app "$@"
       ;;
     update)
       cmd_update

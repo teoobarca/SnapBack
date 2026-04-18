@@ -22,5 +22,8 @@ NOTIFICATION_SOUND="default"
 # Volume for notification sound (0.0 - 1.0)
 VOLUME="1.0"
 
-# Mode: "full" (sound + focus apps) or "sound" (sound only, no app switching)
-MODE="full"
+# Mode: "both" (sound + focus apps), "switches" (focus only), or "sound" (sound only)
+MODE="both"
+
+# Hook providers: "claude", "opencode", both, or empty () for none
+HOOK_PROVIDERS=("claude")

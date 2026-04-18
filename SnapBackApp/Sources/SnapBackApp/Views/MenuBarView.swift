@@ -37,6 +37,12 @@ struct MenuBarView: View {
 
             Divider().opacity(0.3)
 
+            providersSection
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+
+            Divider().opacity(0.3)
+
             FocusAppsView()
                 .padding(.horizontal, 16)
                 .padding(.vertical, 12)
@@ -56,6 +62,7 @@ struct MenuBarView: View {
         .frame(width: 280)
         .onAppear {
             appState.refreshLastTrigger()
+            appState.checkHooksEnabled()
         }
     }
 
@@ -132,7 +139,8 @@ struct MenuBarView: View {
                 get: { appState.mode },
                 set: { appState.setMode($0) }
             )) {
-                Text("Full").tag("full")
+                Text("Both").tag("both")
+                Text("Switches Only").tag("switches")
                 Text("Sound Only").tag("sound")
             }
             .pickerStyle(.segmented)
@@ -141,6 +149,32 @@ struct MenuBarView: View {
     }
 
     // MARK: - Settings
+
+    private var providersSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label("Providers", systemImage: "link.badge.plus")
+                .font(.system(size: 12))
+                .foregroundColor(.secondary)
+
+            Toggle(isOn: Binding(
+                get: { appState.hookClaude },
+                set: { appState.toggleHookClaude($0) }
+            )) {
+                Text("Claude")
+                    .font(.system(size: 11))
+            }
+            .toggleStyle(.checkbox)
+
+            Toggle(isOn: Binding(
+                get: { appState.hookOpenCode },
+                set: { appState.toggleHookOpenCode($0) }
+            )) {
+                Text("OpenCode")
+                    .font(.system(size: 11))
+            }
+            .toggleStyle(.checkbox)
+        }
+    }
 
     private var settingsSection: some View {
         VStack(alignment: .leading, spacing: 0) {

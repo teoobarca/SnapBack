@@ -20,6 +20,7 @@ THROTTLE_SECONDS scalar
 NOTIFICATION_SOUND scalar
 VOLUME scalar
 MODE scalar
+HOOK_PROVIDERS array
 EOF
 }
 

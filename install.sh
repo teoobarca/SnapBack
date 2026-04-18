@@ -4,13 +4,18 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/snapback"
-CLAUDE_SETTINGS="$HOME/.claude/settings.json"
 
 # Load shared config library
 if [[ -f "$SCRIPT_DIR/snapback-lib.sh" ]]; then
   source "$SCRIPT_DIR/snapback-lib.sh"
 else
   echo "error: snapback-lib.sh not found next to install.sh" >&2
+  exit 1
+fi
+if [[ -f "$SCRIPT_DIR/snapback-hooks.sh" ]]; then
+  source "$SCRIPT_DIR/snapback-hooks.sh"
+else
+  echo "error: snapback-hooks.sh not found next to install.sh" >&2
   exit 1
 fi
 SNAPBACK_CONFIG_FILE="$CONFIG_DIR/config"
@@ -140,7 +145,7 @@ if [[ "$skip_config" == "false" ]]; then
   config_set THROTTLE_SECONDS "$throttle" --allow-new
   config_set NOTIFICATION_SOUND "$notification_sound" --allow-new
   config_set VOLUME "1.0" --allow-new
-  config_set MODE "full" --allow-new
+  config_set MODE "both" --allow-new
 
   echo ""
   print_success "Config saved to $CONFIG_DIR/config"
@@ -156,7 +161,7 @@ if [[ "$skip_config" == "true" ]]; then
   config_get THROTTLE_SECONDS >/dev/null || config_set THROTTLE_SECONDS "2" --allow-new
   config_get NOTIFICATION_SOUND >/dev/null || config_set NOTIFICATION_SOUND "default" --allow-new
   config_get VOLUME >/dev/null || config_set VOLUME "1.0" --allow-new
-  config_get MODE >/dev/null || config_set MODE "full" --allow-new
+  config_get MODE >/dev/null || config_set MODE "both" --allow-new
 fi
 
 # ============================================================
@@ -166,39 +171,37 @@ fi
 chmod +x "$SCRIPT_DIR/snapback.sh" "$SCRIPT_DIR/snapback-resume.sh" 2>/dev/null || true
 
 # ============================================================
-# CLAUDE CODE HOOKS
+# HOOK PROVIDERS
 # ============================================================
 
 echo ""
-print_info "Setting up Claude Code hooks..."
+print_info "Configuring hook providers..."
 
-setup_hooks() {
-  mkdir -p "$(dirname "$CLAUDE_SETTINGS")"
+if ! config_get HOOK_PROVIDERS >/dev/null 2>&1; then
+  config_set HOOK_PROVIDERS '("claude")' --allow-new
+fi
 
-  if ! command -v jq &>/dev/null; then
-    print_warning "jq not found - please install with: brew install jq"
-    print_info "Then run: snapback on"
-    return 1
-  fi
+if [[ "$AUTO_YES" == "false" ]]; then
+  echo ""
+  echo -e "${BOLD}Hook providers${NC} - where SnapBack should listen"
+  echo "  1) Claude only"
+  echo "  2) OpenCode only"
+  echo "  3) Claude + OpenCode"
+  echo "  4) None"
+  ask "Choose [1]: " "1" hook_choice
+  case "$hook_choice" in
+    1) snapback_hooks_set_selected claude ;;
+    2) snapback_hooks_set_selected opencode ;;
+    3) snapback_hooks_set_selected all ;;
+    4) snapback_hooks_set_selected none ;;
+    *) print_warning "Unknown choice '$hook_choice' — keeping current providers" ;;
+  esac
+fi
 
-  if [[ ! -f "$CLAUDE_SETTINGS" ]]; then
-    echo '{}' > "$CLAUDE_SETTINGS"
-  fi
-
-  tmp=$(mktemp)
-  jq --arg snapback "$SCRIPT_DIR/snapback.sh" --arg resume "$SCRIPT_DIR/snapback-resume.sh" '
-    .hooks.PermissionRequest = ((.hooks.PermissionRequest // []) | map(select(.hooks[0].command | contains("snapback") | not))) + [{"matcher": "*", "hooks": [{"type": "command", "command": $snapback}]}] |
-    .hooks.Stop = ((.hooks.Stop // []) | map(select(.hooks[0].command | contains("snapback") | not))) + [{"hooks": [{"type": "command", "command": $snapback}]}] |
-    .hooks.PostToolUse = ((.hooks.PostToolUse // []) | map(select(.hooks[0].command | contains("snapback") | not))) + [{"matcher": "Edit|Write|Bash", "hooks": [{"type": "command", "command": $resume}]}] |
-    .hooks.UserPromptSubmit = ((.hooks.UserPromptSubmit // []) | map(select(.hooks[0].command | contains("snapback") | not))) + [{"hooks": [{"type": "command", "command": $resume}]}]
-  ' "$CLAUDE_SETTINGS" > "$tmp" && mv "$tmp" "$CLAUDE_SETTINGS"
-  return 0
-}
-
-if setup_hooks; then
-  print_success "Claude Code hooks configured"
+if snapback_hooks_apply_selected "$SCRIPT_DIR/snapback.sh" "$SCRIPT_DIR/snapback-resume.sh"; then
+  print_success "Hook providers configured: $(snapback_hooks_selected_csv)"
 else
-  print_warning "Hooks not configured - run 'snapback on' after installing jq"
+  print_warning "Some providers failed to configure - run 'snapback on' after dependencies are installed"
 fi
 
 # ============================================================
@@ -234,7 +237,7 @@ if command -v swift &>/dev/null && [[ -d "$SCRIPT_DIR/SnapBackApp" ]]; then
         cd "$SCRIPT_DIR/SnapBackApp"
         # Point the bundle at the CLI we just symlinked (prefer /usr/local/bin)
         export SNAPBACK_CLI_PATH=""
-        for p in /usr/local/bin/snapback /opt/homebrew/bin/snapback "$HOME/.local/bin/snapback"; do
+        for p in "$HOME/.local/bin/snapback" /opt/homebrew/bin/snapback /usr/local/bin/snapback; do
           if [[ -x "$p" ]]; then SNAPBACK_CLI_PATH="$p"; break; fi
         done
         ./build-app.sh
@@ -270,5 +273,5 @@ echo ""
 echo "  Config:   $CONFIG_DIR/config"
 echo "  Commands: snapback status | on | off | update"
 echo ""
-print_info "Restart Claude Code to activate hooks"
+print_info "Restart your coding agent(s) to activate hooks"
 echo ""

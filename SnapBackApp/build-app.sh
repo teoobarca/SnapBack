@@ -22,7 +22,8 @@ mkdir -p "$APP_BUNDLE/Contents/Resources"
 cp "$BUILD_DIR/SnapBackApp" "$APP_BUNDLE/Contents/MacOS/$APP_NAME"
 
 # Create Info.plist
-SNAPBACK_CLI_PATH="${SNAPBACK_CLI_PATH:-}"
+# Default to the repo's own CLI (one level up from SnapBackApp/).
+SNAPBACK_CLI_PATH="${SNAPBACK_CLI_PATH:-$(cd "$SCRIPT_DIR/.." && pwd)/snapback}"
 
 cat > "$APP_BUNDLE/Contents/Info.plist" << 'EOF'
 <?xml version="1.0" encoding="UTF-8"?>

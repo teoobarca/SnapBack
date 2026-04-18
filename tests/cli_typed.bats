@@ -10,10 +10,11 @@ setup() {
   export SNAPBACK_CONFIG_FILE="$TMP/snapback/config"
   : > "$SNAPBACK_CONFIG_FILE"
   # Seed known keys so --allow-new isn't needed
-  "$BATS_TEST_DIRNAME/../snapback" config set MODE full --allow-new
+  "$BATS_TEST_DIRNAME/../snapback" config set MODE both --allow-new
   "$BATS_TEST_DIRNAME/../snapback" config set VOLUME "1.0" --allow-new
   "$BATS_TEST_DIRNAME/../snapback" config set BROWSER "Google Chrome" --allow-new
   "$BATS_TEST_DIRNAME/../snapback" config set FOCUS_APPS '("Cursor")' --allow-new
+  "$BATS_TEST_DIRNAME/../snapback" hooks set none
   export PATH="$BATS_TEST_DIRNAME/..:$PATH"
 }
 
@@ -87,4 +88,40 @@ teardown() {
   [[ "$output" == *'"FOCUS_APPS": ['* ]]
   [[ "$output" == *'"Visual Studio Code"'* ]]
   [[ "$output" == *'"iTerm 2"'* ]]
+}
+
+@test "snapback mode supports both switches and sound" {
+  snapback mode switches
+  [ "$(snapback config get MODE)" = "switches" ]
+
+  snapback mode sound
+  [ "$(snapback config get MODE)" = "sound" ]
+
+  snapback mode both
+  [ "$(snapback config get MODE)" = "both" ]
+}
+
+@test "snapback mode accepts full alias as both" {
+  snapback mode full
+  [ "$(snapback config get MODE)" = "both" ]
+}
+
+@test "snapback hooks set/get supports none and multiple providers" {
+  snapback hooks set none
+  [ "$(snapback hooks get)" = "none" ]
+
+  snapback hooks set claude opencode
+  [ "$(snapback hooks get)" = "claude,opencode" ]
+}
+
+@test "snapback hooks add/remove updates provider selection" {
+  snapback hooks set claude
+  snapback hooks add opencode
+  [ "$(snapback hooks get)" = "claude,opencode" ]
+
+  snapback hooks remove claude
+  [ "$(snapback hooks get)" = "opencode" ]
+
+  snapback hooks remove all
+  [ "$(snapback hooks get)" = "none" ]
 }
