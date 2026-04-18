@@ -83,3 +83,47 @@ final class SigningDomainTests: XCTestCase {
         XCTAssertEqual(domainStr?.hasSuffix("\u{00}{}"), true)
     }
 }
+
+final class HMACSignVerifyTests: XCTestCase {
+    private let secret = Data(repeating: 0x42, count: 32)
+
+    func testSignProducesLowercaseHexOfConstantLength() {
+        let msg = ProtocolMessage(
+            version: 1, type: .heartbeat, timestamp: 1, nonceHex: String(repeating: "0", count: 32)
+        )
+        let sig = MessageCodec.sign(message: msg, direction: .clientToServer, secret: secret)
+        XCTAssertEqual(sig.count, 64)
+        XCTAssertTrue(sig.allSatisfy { "0123456789abcdef".contains($0) })
+    }
+
+    func testVerifyAcceptsCorrectSignature() {
+        let msg = ProtocolMessage(
+            version: 1, type: .hello, timestamp: 17, nonceHex: String(repeating: "0", count: 32)
+        )
+        let sig = MessageCodec.sign(message: msg, direction: .clientToServer, secret: secret)
+        XCTAssertTrue(
+            MessageCodec.verify(message: msg, direction: .clientToServer, hmacHex: sig, secret: secret)
+        )
+    }
+
+    func testVerifyRejectsOnDirectionMismatch() {
+        let msg = ProtocolMessage(
+            version: 1, type: .hello, timestamp: 17, nonceHex: String(repeating: "0", count: 32)
+        )
+        let sig = MessageCodec.sign(message: msg, direction: .clientToServer, secret: secret)
+        XCTAssertFalse(
+            MessageCodec.verify(message: msg, direction: .serverToClient, hmacHex: sig, secret: secret)
+        )
+    }
+
+    func testVerifyRejectsOnTamperedField() {
+        var msg = ProtocolMessage(
+            version: 1, type: .attention, timestamp: 17, nonceHex: String(repeating: "0", count: 32)
+        )
+        let sig = MessageCodec.sign(message: msg, direction: .clientToServer, secret: secret)
+        msg.timestamp = 18
+        XCTAssertFalse(
+            MessageCodec.verify(message: msg, direction: .clientToServer, hmacHex: sig, secret: secret)
+        )
+    }
+}
