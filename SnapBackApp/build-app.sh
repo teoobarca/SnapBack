@@ -22,6 +22,8 @@ mkdir -p "$APP_BUNDLE/Contents/Resources"
 cp "$BUILD_DIR/SnapBackApp" "$APP_BUNDLE/Contents/MacOS/$APP_NAME"
 
 # Create Info.plist
+SNAPBACK_CLI_PATH="${SNAPBACK_CLI_PATH:-}"
+
 cat > "$APP_BUNDLE/Contents/Info.plist" << 'EOF'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -36,9 +38,9 @@ cat > "$APP_BUNDLE/Contents/Info.plist" << 'EOF'
     <key>CFBundleDisplayName</key>
     <string>SnapBack</string>
     <key>CFBundleVersion</key>
-    <string>1.0</string>
+    <string>1.2</string>
     <key>CFBundleShortVersionString</key>
-    <string>1.0</string>
+    <string>1.2</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>LSMinimumSystemVersion</key>
@@ -50,6 +52,11 @@ cat > "$APP_BUNDLE/Contents/Info.plist" << 'EOF'
 </dict>
 </plist>
 EOF
+
+if [[ -n "$SNAPBACK_CLI_PATH" ]]; then
+  /usr/libexec/PlistBuddy -c "Add :SnapBackCLIPath string $SNAPBACK_CLI_PATH" \
+    "$APP_BUNDLE/Contents/Info.plist"
+fi
 
 echo "✓ Built: $APP_BUNDLE"
 echo ""
