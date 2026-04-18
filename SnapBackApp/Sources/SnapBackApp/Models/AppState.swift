@@ -153,7 +153,6 @@ class AppState: ObservableObject {
             DispatchQueue.main.async { self.lastError = "SnapBack CLI not found" }
             return
         }
-        lastOutgoingWriteAt = Date()
         if result.exitCode != 0 {
             let msg = result.stderr.trimmingCharacters(in: .whitespacesAndNewlines)
             DispatchQueue.main.async { self.lastError = "\(label): \(msg.isEmpty ? "exit \(result.exitCode)" : msg)" }
@@ -177,6 +176,7 @@ class AppState: ObservableObject {
         volume = v
         debounced("volume") { [weak self] in
             guard let self else { return }
+            self.lastOutgoingWriteAt = Date()  // mark BEFORE the write
             self.writeResult(self.cli.setVolume(v), label: "volume")
         }
     }
@@ -185,6 +185,7 @@ class AppState: ObservableObject {
         mode = m
         debounced("mode") { [weak self] in
             guard let self else { return }
+            self.lastOutgoingWriteAt = Date()  // mark BEFORE the write
             self.writeResult(self.cli.setMode(m), label: "mode")
         }
     }
@@ -193,6 +194,7 @@ class AppState: ObservableObject {
         browser = b
         debounced("browser") { [weak self] in
             guard let self else { return }
+            self.lastOutgoingWriteAt = Date()  // mark BEFORE the write
             self.writeResult(self.cli.setBrowser(b), label: "browser")
         }
     }
@@ -201,6 +203,7 @@ class AppState: ObservableObject {
         focusApps = apps
         debounced("focus") { [weak self] in
             guard let self else { return }
+            self.lastOutgoingWriteAt = Date()  // mark BEFORE the write
             self.writeResult(self.cli.setFocusApps(apps), label: "focus")
         }
     }
@@ -209,6 +212,7 @@ class AppState: ObservableObject {
         throttleSeconds = s
         debounced("throttle") { [weak self] in
             guard let self else { return }
+            self.lastOutgoingWriteAt = Date()  // mark BEFORE the write
             self.writeResult(self.cli.setThrottle(s), label: "throttle")
         }
     }
@@ -217,6 +221,7 @@ class AppState: ObservableObject {
         seekBackSeconds = s
         debounced("seekBack") { [weak self] in
             guard let self else { return }
+            self.lastOutgoingWriteAt = Date()  // mark BEFORE the write
             self.writeResult(self.cli.setSeekBack(s), label: "seekBack")
         }
     }
