@@ -210,6 +210,51 @@ else
 fi
 
 # ============================================================
+# MENU-BAR APP (optional)
+# ============================================================
+echo ""
+if command -v swift &>/dev/null && [[ -d "$SCRIPT_DIR/SnapBackApp" ]]; then
+  install_app=""
+  if [[ "$AUTO_YES" == "true" ]]; then
+    install_app="n"  # default no for non-interactive
+  else
+    ask "Build & install SnapBack menu-bar app? [Y/n]: " "Y" install_app
+  fi
+
+  case "$install_app" in
+    [Yy]*)
+      print_info "Building menu-bar app..."
+      (
+        cd "$SCRIPT_DIR/SnapBackApp"
+        # Point the bundle at the CLI we just symlinked (prefer /usr/local/bin)
+        export SNAPBACK_CLI_PATH=""
+        for p in /usr/local/bin/snapback /opt/homebrew/bin/snapback "$HOME/.local/bin/snapback"; do
+          if [[ -x "$p" ]]; then SNAPBACK_CLI_PATH="$p"; break; fi
+        done
+        ./build-app.sh
+      )
+      print_info "Installing to /Applications/SnapBack.app ..."
+      if [[ -w /Applications ]]; then
+        rm -rf /Applications/SnapBack.app
+        cp -R "$SCRIPT_DIR/SnapBackApp/SnapBack.app" /Applications/
+      else
+        sudo rm -rf /Applications/SnapBack.app
+        sudo cp -R "$SCRIPT_DIR/SnapBackApp/SnapBack.app" /Applications/
+      fi
+      print_success "Installed. Run with: snapback app (or from /Applications)"
+      ;;
+    *)
+      print_info "Skipped. Re-run 'snapback update' any time to install."
+      ;;
+  esac
+else
+  if ! command -v swift &>/dev/null; then
+    print_info "Menu-bar app skipped (Swift not available)."
+    print_info "Install Xcode Command Line Tools: xcode-select --install"
+  fi
+fi
+
+# ============================================================
 # DONE
 # ============================================================
 
