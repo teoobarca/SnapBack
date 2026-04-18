@@ -68,9 +68,15 @@ cd snapback
 ```bash
 snapback install [-y]        # Interactive installation and configuration
 snapback status              # Check configuration and menu-bar state
-snapback on                  # Enable Claude Code hooks
-snapback off                 # Disable Claude Code hooks (keeps config)
-snapback mode [MODE]         # Get/set mode: full (sound + focus) or sound (sound only)
+snapback on                  # Enable hooks for selected providers
+snapback off                 # Disable hooks for selected providers
+snapback hooks list          # List available hook providers
+snapback hooks get           # Show selected providers
+snapback hooks set all       # Set providers: all | none | claude opencode
+snapback hooks add opencode  # Add provider(s) to current selection
+snapback hooks remove claude # Remove provider(s) from current selection
+snapback hooks status        # Show per-provider hook status
+snapback mode [MODE]         # Get/set mode: both | switches | sound
 snapback volume [VAL]        # Get/set notification volume (0.0 - 1.0)
 snapback browser [NAME]      # Get/set browser (Google Chrome, Arc, Safari, Firefox, Brave)
 snapback focus list          # List focus apps
@@ -83,6 +89,7 @@ snapback config show         # Show all config values
 snapback config path         # Print config file path
 snapback test                # Play a notification preview
 snapback app                 # Launch the menu-bar app (if installed)
+snapback app install         # Build + install + launch menu-bar app
 snapback update              # Update to latest version (and rebuild menu-bar app if installed)
 snapback uninstall           # Remove config, hooks, and menu-bar app
 ```
@@ -90,7 +97,7 @@ snapback uninstall           # Remove config, hooks, and menu-bar app
 ### Menu-bar app (optional)
 
 SnapBack ships with an optional SwiftUI menu-bar app that lets you tweak
-volume, mode, focus apps, and the Claude Code on/off switch without a
+volume, mode, focus apps, and the SnapBack on/off switch without a
 terminal. It's built locally from source during `snapback install`
 (requires Xcode Command Line Tools / Swift 5.9+, macOS 13+). Open with
 `snapback app` or from `/Applications/SnapBack.app`.
@@ -127,13 +134,25 @@ Config file: `~/.config/snapback/config`
 | `SEEK_BACK_SECONDS` | `1` | Rewind when resuming video |
 | `THROTTLE_SECONDS` | `2` | Cooldown between triggers |
 | `NOTIFICATION_SOUND` | `"default"` | Sound file, `"default"`, or `""` to disable |
+| `HOOK_PROVIDERS` | `("claude")` | Hook targets: `claude`, `opencode`, both, or `()` |
 
 ---
 
-## Claude Code Hooks
+## Hook Providers
+
+SnapBack can integrate with one, many, or no coding agents at all.
+
+- `snapback hooks set claude` → Claude Code only
+- `snapback hooks set opencode` → OpenCode only
+- `snapback hooks set all` → Claude + OpenCode
+- `snapback hooks set none` → disable hook wiring
+- `snapback hooks add opencode` → add OpenCode while keeping current providers
+- `snapback hooks remove claude` → remove Claude from current providers
+
+### Claude Code hooks
 
 <details>
-<summary>Manual hook configuration (if you skipped the installer)</summary>
+<summary>Manual configuration (if you skipped installer + CLI)</summary>
 
 Add to `~/.claude/settings.json`:
 
@@ -157,6 +176,14 @@ Add to `~/.claude/settings.json`:
 ```
 
 </details>
+
+### OpenCode hooks
+
+SnapBack installs a managed plugin at `~/.config/opencode/plugins/snapback.js`.
+This plugin triggers:
+
+- `snapback.sh` on `permission.asked` and `session.idle`
+- `snapback-resume.sh` on `tool.execute.after` and `command.executed`
 
 ---
 
