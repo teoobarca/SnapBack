@@ -97,3 +97,18 @@ teardown() {
   [ "$status" -ne 0 ]
   [ ! -d "${SNAPBACK_CONFIG_FILE}.lock.d" ]
 }
+
+@test "config_set accepts MOBILE_ENABLED without --allow-new" {
+  run bash -c "source '$BATS_TEST_DIRNAME/../snapback-lib.sh' && config_set MOBILE_ENABLED true"
+  [ "$status" -eq 0 ]
+  run grep -q '^MOBILE_ENABLED=' "$SNAPBACK_CONFIG_FILE"
+  [ "$status" -eq 0 ]
+}
+
+@test "config_set accepts MOBILE_DEVICE_NAME without --allow-new" {
+  run bash -c "source '$BATS_TEST_DIRNAME/../snapback-lib.sh' && config_set MOBILE_DEVICE_NAME 'Samsung S24'"
+  [ "$status" -eq 0 ]
+  run bash -c "source '$BATS_TEST_DIRNAME/../snapback-lib.sh' && config_get MOBILE_DEVICE_NAME"
+  [ "$status" -eq 0 ]
+  [ "$output" = "Samsung S24" ]
+}
