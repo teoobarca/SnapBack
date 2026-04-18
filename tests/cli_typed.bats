@@ -35,3 +35,32 @@ teardown() {
   snapback browser Arc
   [ "$(snapback config get BROWSER)" = "Arc" ]
 }
+
+@test "snapback focus list prints current apps" {
+  run snapback focus list
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"Cursor"* ]]
+}
+
+@test "snapback focus add appends" {
+  snapback focus add Ghostty
+  run snapback focus list
+  [[ "$output" == *"Cursor"* ]]
+  [[ "$output" == *"Ghostty"* ]]
+}
+
+@test "snapback focus remove drops the app" {
+  snapback focus add Ghostty
+  snapback focus remove Cursor
+  run snapback focus list
+  [[ "$output" != *"Cursor"* ]]
+  [[ "$output" == *"Ghostty"* ]]
+}
+
+@test "snapback focus set replaces the array" {
+  snapback focus set Zed Terminal
+  run snapback focus list
+  [[ "$output" == *"Zed"* ]]
+  [[ "$output" == *"Terminal"* ]]
+  [[ "$output" != *"Cursor"* ]]
+}

@@ -56,6 +56,7 @@ Commands:
   mode [MODE]   Set mode: full (sound + focus) or sound (sound only)
   volume [VAL]  Get/set notification volume (0.0 - 1.0)
   browser [NAME]  Get/set browser (e.g., "Google Chrome", Arc, Safari)
+  focus <sub>   list | add NAME | remove NAME | set NAME1 NAME2 ...
   config <sub>  Get/set config: get KEY | set KEY VAL | show [--json] | path
   app           Launch menu bar app for GUI configuration
   update        Update to latest version
@@ -451,6 +452,84 @@ cmd_browser() {
 }
 
 # ============================================================
+# FOCUS COMMAND
+# ============================================================
+_focus_escape_token() {
+  local v="$1"
+  v="${v//\\/\\\\}"
+  v="${v//\$/\\\$}"
+  v="${v//\`/\\\`}"
+  v="${v//\"/\\\"}"
+  printf '"%s"' "$v"
+}
+
+_focus_write_array() {
+  local literal='('
+  local a
+  for a in "$@"; do
+    literal+="$(_focus_escape_token "$a") "
+  done
+  literal="${literal% })"
+  config_set FOCUS_APPS "$literal"
+}
+
+cmd_focus() {
+  local sub="${1:-list}"
+  shift || true
+  # Snapshot current list (bash 3.2-compatible — no mapfile)
+  local apps=()
+  if [[ -f "$CONFIG_FILE" ]]; then
+    while IFS= read -r line; do
+      apps+=("$line")
+    done < <(
+      # shellcheck disable=SC1090
+      source "$CONFIG_FILE" 2>/dev/null
+      for a in "${FOCUS_APPS[@]+"${FOCUS_APPS[@]}"}"; do printf '%s\n' "$a"; done
+    )
+  fi
+  case "$sub" in
+    list)
+      local a
+      for a in "${apps[@]+"${apps[@]}"}"; do printf '%s\n' "$a"; done
+      ;;
+    add)
+      [[ $# -ge 1 ]] || { print_error "Usage: snapback focus add NAME"; exit 2; }
+      local new="$1"
+      local a
+      for a in "${apps[@]+"${apps[@]}"}"; do
+        [[ "$a" == "$new" ]] && { print_info "Already present: $new"; exit 0; }
+      done
+      apps+=("$new")
+      _focus_write_array "${apps[@]+"${apps[@]}"}"
+      print_success "Added: $new"
+      ;;
+    remove)
+      [[ $# -ge 1 ]] || { print_error "Usage: snapback focus remove NAME"; exit 2; }
+      local drop="$1" kept=() changed=0
+      local a
+      for a in "${apps[@]+"${apps[@]}"}"; do
+        if [[ "$a" == "$drop" ]]; then changed=1; else kept+=("$a"); fi
+      done
+      if (( changed == 0 )); then
+        print_warning "Not present: $drop"
+        exit 0
+      fi
+      _focus_write_array "${kept[@]+"${kept[@]}"}"
+      print_success "Removed: $drop"
+      ;;
+    set)
+      [[ $# -ge 1 ]] || { print_error "Usage: snapback focus set NAME [NAME ...]"; exit 2; }
+      _focus_write_array "$@"
+      print_success "Focus apps set to: $*"
+      ;;
+    *)
+      print_error "Unknown focus subcommand: $sub"
+      exit 2
+      ;;
+  esac
+}
+
+# ============================================================
 # CONFIG COMMAND
 # ============================================================
 cmd_config() {
@@ -548,6 +627,9 @@ main() {
       ;;
     browser)
       cmd_browser "$@"
+      ;;
+    focus)
+      cmd_focus "$@"
       ;;
     config)
       cmd_config "$@"
