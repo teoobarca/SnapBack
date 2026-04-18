@@ -127,3 +127,40 @@ final class HMACSignVerifyTests: XCTestCase {
         )
     }
 }
+
+final class WireEncodeDecodeTests: XCTestCase {
+    private let secret = Data(repeating: 0xAB, count: 32)
+
+    func testRoundTripSignedMessage() throws {
+        let original = ProtocolMessage(
+            version: 1,
+            type: .attention,
+            timestamp: 1_734_556_677,
+            nonceHex: String(repeating: "a", count: 32),
+            payload: [("hook", .string("PermissionRequest"))]
+        )
+        let line = try MessageCodec.encodeSignedLine(
+            original, direction: .clientToServer, secret: secret
+        )
+        XCTAssertTrue(line.hasSuffix("\n"))
+
+        let (decoded, hmac) = try MessageCodec.decodeLine(line)
+        XCTAssertEqual(decoded, original)
+        XCTAssertTrue(
+            MessageCodec.verify(message: decoded, direction: .clientToServer,
+                                hmacHex: hmac, secret: secret)
+        )
+    }
+
+    func testDecodeRejectsMissingHmac() {
+        let json = "{\"v\":1,\"type\":\"resume\",\"ts\":1,\"nonce\":\"" +
+                   String(repeating: "0", count: 32) + "\",\"payload\":{}}\n"
+        XCTAssertThrowsError(try MessageCodec.decodeLine(json))
+    }
+
+    func testDecodeRejectsUnknownType() {
+        let json = "{\"v\":1,\"type\":\"bogus\",\"ts\":1,\"nonce\":\"" +
+                   String(repeating: "0", count: 32) + "\",\"payload\":{},\"hmac\":\"x\"}\n"
+        XCTAssertThrowsError(try MessageCodec.decodeLine(json))
+    }
+}
