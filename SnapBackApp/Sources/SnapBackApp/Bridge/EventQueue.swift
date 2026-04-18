@@ -25,6 +25,11 @@ public final class EventQueue {
 
     public var depth: Int { queue.sync { buffer.count } }
 
+    // NOTE (Phase 12): drop-oldest is a naive policy for *stateful* events.
+    // If [attention, resume] overflows capacity 1, dropping "attention" leaves
+    // the phone receiving "resume" for a HOLD it never saw. BridgeOrchestrator
+    // must either enlarge capacity past realistic bursts or implement a
+    // coalescing policy (e.g., "latest intent wins: depth <= 1").
     public func enqueue(_ event: BridgeEvent) {
         queue.sync {
             buffer.append(event)
