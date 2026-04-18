@@ -89,3 +89,11 @@ teardown() {
   [ "$status" -ne 0 ]
   [[ "$output" == *"newline"* ]]
 }
+
+@test "config_set releases lock even when validation fails" {
+  : > "$SNAPBACK_CONFIG_FILE"
+  # Trigger the invalid-array-literal path
+  run config_set FOCUS_APPS "not-a-literal"
+  [ "$status" -ne 0 ]
+  [ ! -d "${SNAPBACK_CONFIG_FILE}.lock.d" ]
+}

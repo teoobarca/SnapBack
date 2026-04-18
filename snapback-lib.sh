@@ -103,30 +103,38 @@ config_set() {
     waited=$((waited + 1))
   done
 
-  if [[ "$ktype" == "scalar" ]]; then
-    local escaped new_line
-    escaped="$(_snapback_escape_value "$value")"
-    new_line="${key}=\"${escaped}\""
-    if grep -q "^${key}=" "$SNAPBACK_CONFIG_FILE"; then
-      _snapback_rewrite_scalar "$key" "$new_line"
+  # Perform the write in a ( subshell ) so that any set -e abort still
+  # triggers the EXIT trap.  The subshell can write to $SNAPBACK_CONFIG_FILE
+  # (a real file), so this is safe.  Lock is removed by the EXIT trap inside
+  # the subshell OR by the explicit rmdir below if the subshell exits cleanly.
+  # (bash 3.2 lacks 'trap RETURN', hence this subshell + EXIT pattern.)
+  local _rc=0
+  (
+    trap 'rmdir "'"$lockdir"'" 2>/dev/null' EXIT
+    if [[ "$ktype" == "scalar" ]]; then
+      local escaped new_line
+      escaped="$(_snapback_escape_value "$value")"
+      new_line="${key}=\"${escaped}\""
+      if grep -q "^${key}=" "$SNAPBACK_CONFIG_FILE"; then
+        _snapback_rewrite_scalar "$key" "$new_line"
+      else
+        printf '\n# Added by snapback config set\n%s\n' "$new_line" >> "$SNAPBACK_CONFIG_FILE"
+      fi
     else
-      printf '\n# Added by snapback config set\n%s\n' "$new_line" >> "$SNAPBACK_CONFIG_FILE"
+      if [[ ! "$value" =~ ^\(.*\)$ ]]; then
+        echo "config_set: array value must be (\"a\" \"b\" ...)" >&2
+        exit 2
+      fi
+      local new_line="${key}=${value}"
+      if grep -q "^${key}=" "$SNAPBACK_CONFIG_FILE"; then
+        _snapback_rewrite_scalar "$key" "$new_line"
+      else
+        printf '\n# Added by snapback config set\n%s\n' "$new_line" >> "$SNAPBACK_CONFIG_FILE"
+      fi
     fi
-  else
-    if [[ ! "$value" =~ ^\(.*\)$ ]]; then
-      echo "config_set: array value must be (\"a\" \"b\" ...)" >&2
-      rmdir "$lockdir" 2>/dev/null
-      return 2
-    fi
-    local new_line="${key}=${value}"
-    if grep -q "^${key}=" "$SNAPBACK_CONFIG_FILE"; then
-      _snapback_rewrite_scalar "$key" "$new_line"
-    else
-      printf '\n# Added by snapback config set\n%s\n' "$new_line" >> "$SNAPBACK_CONFIG_FILE"
-    fi
-  fi
-
-  rmdir "$lockdir" 2>/dev/null
+  ) || _rc=$?
+  rmdir "$lockdir" 2>/dev/null || true  # no-op if EXIT trap already removed it
+  return $_rc
 }
 
 # Usage: config_get KEY
