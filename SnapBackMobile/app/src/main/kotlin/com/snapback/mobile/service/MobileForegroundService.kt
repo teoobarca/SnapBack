@@ -18,6 +18,8 @@ import com.snapback.mobile.lock.OverlayActivity
 import com.snapback.mobile.net.MdnsAdvertiser
 import com.snapback.mobile.net.MessageServer
 import com.snapback.mobile.net.WifiLocks
+import com.snapback.mobile.db.AppDatabase
+import com.snapback.mobile.db.EventRow
 import com.snapback.mobile.protocol.JsonValue
 import com.snapback.mobile.protocol.ProtocolMessage
 import com.snapback.mobile.protocol.ProtocolMessageType
@@ -101,17 +103,29 @@ class MobileForegroundService : Service() {
         userPresentReceiver = null
     }
 
+    private fun logEvent(now: Long, kind: String, detail: String) {
+        scope.launch {
+            val db = AppDatabase.get(this@MobileForegroundService)
+            db.events().insert(EventRow(timestamp = now, kind = kind, detail = detail))
+            db.events().trim()
+        }
+    }
+
     private fun onMessage(msg: ProtocolMessage) {
         val sm = this.sm ?: return
         val now = System.currentTimeMillis()
         when (msg.type) {
             ProtocolMessageType.Attention -> {
-                val kind = (msg.payload.firstOrNull { it.first == "hook" }?.second as? JsonValue.Str)?.value ?: "Stop"
+                val hook = (msg.payload.firstOrNull { it.first == "hook" }?.second as? JsonValue.Str)?.value ?: "Stop"
+                logEvent(now, msg.type.wire, hook)
                 val passes = ScreenStateGate.passes(this)
-                val effect = sm.onAttention(passes, kind, now)
+                val effect = sm.onAttention(passes, hook, now)
                 applyEffect(effect, now)
             }
-            ProtocolMessageType.Resume -> applyEffect(sm.onResume(now), now)
+            ProtocolMessageType.Resume -> {
+                logEvent(now, msg.type.wire, "")
+                applyEffect(sm.onResume(now), now)
+            }
             else -> {} // ack/pong/heartbeat/resync handled by server
         }
     }
