@@ -58,9 +58,13 @@ public final class MobilePeer {
 
     private func connect() {
         guard !stopRequested else { return }
+        guard let nwPort = NWEndpoint.Port(rawValue: port) else {
+            state = .disconnected
+            return
+        }
         state = .connecting
         let c = NWConnection(host: NWEndpoint.Host(host),
-                             port: NWEndpoint.Port(rawValue: port)!,
+                             port: nwPort,
                              using: .tcp)
         connection = c
         c.stateUpdateHandler = { [weak self] s in

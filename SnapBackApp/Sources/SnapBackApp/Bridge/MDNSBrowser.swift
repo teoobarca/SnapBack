@@ -15,16 +15,20 @@ public final class MDNSBrowser {
     private var browser: NWBrowser?
     private var pathMonitor: NWPathMonitor?
     private let queue = DispatchQueue(label: "com.snapback.bridge.mdns")
+    private var stopped = true
+    private var pendingResolutions: [NWConnection] = []
 
     public init() {}
 
     public func start() {
+        stopped = false
         startBrowser()
         let pm = NWPathMonitor()
         pm.pathUpdateHandler = { [weak self] _ in
             self?.queue.async {
-                self?.browser?.cancel()
-                self?.startBrowser()
+                guard let self, !self.stopped else { return }
+                self.browser?.cancel()
+                self.startBrowser()
             }
         }
         pm.start(queue: queue)
@@ -32,13 +36,17 @@ public final class MDNSBrowser {
     }
 
     public func stop() {
+        stopped = true
         browser?.cancel()
         browser = nil
         pathMonitor?.cancel()
         pathMonitor = nil
+        for conn in pendingResolutions { conn.cancel() }
+        pendingResolutions.removeAll()
     }
 
     private func startBrowser() {
+        guard !stopped else { return }
         let descriptor = NWBrowser.Descriptor.bonjour(type: "_snapback._tcp", domain: "local.")
         let b = NWBrowser(for: descriptor, using: .tcp)
         b.browseResultsChangedHandler = { [weak self] results, _ in
@@ -52,8 +60,10 @@ public final class MDNSBrowser {
 
     private func resolve(endpoint: NWEndpoint) {
         let conn = NWConnection(to: endpoint, using: .tcp)
+        pendingResolutions.append(conn)
         conn.stateUpdateHandler = { [weak self] state in
-            if case .ready = state {
+            switch state {
+            case .ready:
                 if case let .hostPort(host, port) = conn.currentPath?.remoteEndpoint {
                     let hostString: String
                     switch host {
@@ -65,8 +75,10 @@ public final class MDNSBrowser {
                     self?.onDiscover?(hostString, port.rawValue)
                 }
                 conn.cancel()
-            } else if case .failed = state {
-                conn.cancel()
+            case .failed, .cancelled:
+                self?.pendingResolutions.removeAll { $0 === conn }
+            default:
+                break
             }
         }
         conn.start(queue: queue)

@@ -8,7 +8,9 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.os.Build
+import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.snapback.mobile.BuildConfig
@@ -38,6 +40,7 @@ class MobileForegroundService : Service() {
     private var userPresentReceiver: UserPresentReceiver? = null
     private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
     private var ttlJob: Job? = null
+    private val mainHandler = Handler(Looper.getMainLooper())
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -70,7 +73,7 @@ class MobileForegroundService : Service() {
         this.lockDriver = LockDriver(this)
         this.sm = HoldStateMachine(ttlMs = BuildConfig.HOLD_TTL_MS)
 
-        val server = MessageServer(token, DEFAULT_PORT) { msg -> onMessage(msg) }
+        val server = MessageServer(token, DEFAULT_PORT) { msg -> mainHandler.post { onMessage(msg) } }
         server.start()
         this.server = server
 
