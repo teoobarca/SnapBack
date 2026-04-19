@@ -6,49 +6,69 @@ import android.app.NotificationManager
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.os.Build
 import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import com.snapback.mobile.BuildConfig
 import com.snapback.mobile.R
+import com.snapback.mobile.lock.LockDriver
+import com.snapback.mobile.lock.OverlayActivity
 import com.snapback.mobile.net.MdnsAdvertiser
 import com.snapback.mobile.net.MessageServer
 import com.snapback.mobile.net.WifiLocks
+import com.snapback.mobile.protocol.JsonValue
 import com.snapback.mobile.protocol.ProtocolMessage
+import com.snapback.mobile.protocol.ProtocolMessageType
 import com.snapback.mobile.security.KeystoreTokenStore
+import com.snapback.mobile.state.HoldStateMachine
+import com.snapback.mobile.state.ScreenStateGate
+import com.snapback.mobile.state.TransitionEffect
+import kotlinx.coroutines.*
 
 class MobileForegroundService : Service() {
     private var server: MessageServer? = null
     private var mdns: MdnsAdvertiser? = null
     private var locks: WifiLocks? = null
+    private var lockDriver: LockDriver? = null
+    private var sm: HoldStateMachine? = null
+    private var userPresentReceiver: UserPresentReceiver? = null
+    private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
+    private var ttlJob: Job? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onCreate() {
         super.onCreate()
+        instance = this
         ensureNotificationChannel()
-        startForeground(NOTIF_ID, buildNotification("Waiting for Mac"))
+        startForeground(NOTIF_ID, buildNotification("Bridge idle"))
         startBridge()
+        registerUserPresent()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = START_STICKY
 
     override fun onDestroy() {
+        unregisterUserPresent()
         stopBridge()
+        scope.cancel()
+        instance = null
         super.onDestroy()
     }
 
     private fun startBridge() {
         val token = KeystoreTokenStore(this).read() ?: run {
-            Log.w(TAG, "no paired token; foreground service running but idle")
+            Log.w(TAG, "no paired token; service idle")
             return
         }
         val locks = WifiLocks(this).also { it.holdMulticast() }
         this.locks = locks
+        this.lockDriver = LockDriver(this)
+        this.sm = HoldStateMachine(ttlMs = BuildConfig.HOLD_TTL_MS)
 
-        val server = MessageServer(token, DEFAULT_PORT) { msg: ProtocolMessage ->
-            onMessage(msg)
-        }
+        val server = MessageServer(token, DEFAULT_PORT) { msg -> onMessage(msg) }
         server.start()
         this.server = server
 
@@ -57,15 +77,81 @@ class MobileForegroundService : Service() {
     }
 
     private fun stopBridge() {
+        ttlJob?.cancel(); ttlJob = null
         server?.stop(); server = null
         mdns?.stop(); mdns = null
         locks?.releaseMulticast(); locks?.releaseHighPerfWifi()
         locks = null
     }
 
+    private fun registerUserPresent() {
+        val r = UserPresentReceiver()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(r, IntentFilter(Intent.ACTION_USER_PRESENT), Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            @Suppress("UnspecifiedRegisterReceiverFlag")
+            registerReceiver(r, IntentFilter(Intent.ACTION_USER_PRESENT))
+        }
+        userPresentReceiver = r
+    }
+
+    private fun unregisterUserPresent() {
+        val r = userPresentReceiver ?: return
+        try { unregisterReceiver(r) } catch (_: Exception) {}
+        userPresentReceiver = null
+    }
+
     private fun onMessage(msg: ProtocolMessage) {
-        // Slice A: observe only. Lock wiring arrives in Phase 5.
-        Log.i(TAG, "received ${msg.type.wire}")
+        val sm = this.sm ?: return
+        val now = System.currentTimeMillis()
+        when (msg.type) {
+            ProtocolMessageType.Attention -> {
+                val kind = (msg.payload.firstOrNull { it.first == "hook" }?.second as? JsonValue.Str)?.value ?: "Stop"
+                val passes = ScreenStateGate.passes(this)
+                val effect = sm.onAttention(passes, kind, now)
+                applyEffect(effect, now)
+            }
+            ProtocolMessageType.Resume -> applyEffect(sm.onResume(now), now)
+            else -> {} // ack/pong/heartbeat/resync handled by server
+        }
+    }
+
+    private fun applyEffect(effect: TransitionEffect, nowMs: Long) {
+        when (effect) {
+            TransitionEffect.Ignore -> {}
+            TransitionEffect.LockAndArmTimer -> {
+                lockDriver?.lock()
+                armTtlTimer(nowMs)
+                updateNotification("Holding — waiting for Claude resume")
+            }
+            TransitionEffect.UnlockAndCancelTimer -> {
+                OverlayActivity.dismiss()
+                ttlJob?.cancel()
+                ttlJob = null
+                updateNotification("Bridge idle")
+            }
+            TransitionEffect.RelockAfterGrace -> {
+                scope.launch {
+                    delay(RELOCK_GRACE_MS)
+                    lockDriver?.lock()
+                }
+            }
+        }
+    }
+
+    private fun armTtlTimer(startedAt: Long) {
+        ttlJob?.cancel()
+        ttlJob = scope.launch {
+            delay(BuildConfig.HOLD_TTL_MS + 500L)
+            val sm = this@MobileForegroundService.sm ?: return@launch
+            val now = System.currentTimeMillis()
+            applyEffect(sm.onTtlTick(now), now)
+        }
+    }
+
+    private fun updateNotification(text: String) {
+        val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        nm.notify(NOTIF_ID, buildNotification(text))
     }
 
     private fun ensureNotificationChannel() {
@@ -90,11 +176,19 @@ class MobileForegroundService : Service() {
             .build()
     }
 
+    fun manualRelease() {
+        val sm = this.sm ?: return
+        applyEffect(sm.onManualRelease(), System.currentTimeMillis())
+    }
+
     companion object {
         private const val TAG = "SnapBack/fgs"
         private const val CHANNEL_ID = "snapback-bridge"
         private const val NOTIF_ID = 1001
         const val DEFAULT_PORT = 45782
+        private const val RELOCK_GRACE_MS = 250L
+
+        @Volatile private var instance: MobileForegroundService? = null
 
         fun start(context: Context) {
             val intent = Intent(context, MobileForegroundService::class.java)
@@ -107,6 +201,16 @@ class MobileForegroundService : Service() {
 
         fun stop(context: Context) {
             context.stopService(Intent(context, MobileForegroundService::class.java))
+        }
+
+        fun onUserPresent(context: Context) {
+            val svc = instance ?: return
+            val sm = svc.sm ?: return
+            svc.applyEffect(sm.onUserPresent(), System.currentTimeMillis())
+        }
+
+        fun manualRelease(context: Context) {
+            instance?.manualRelease()
         }
     }
 }
