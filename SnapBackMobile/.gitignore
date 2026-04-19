@@ -1,0 +1,24 @@
+# Gradle
+.gradle/
+build/
+local.properties
+!gradle-wrapper.properties
+
+# IntelliJ / Android Studio
+.idea/
+*.iml
+captures/
+.externalNativeBuild/
+.cxx/
+
+# Keystore — DO NOT COMMIT. Real keystore file lives alongside .gitkeep.
+keystore/*.jks
+keystore/*.keystore
+keystore/*.properties
+
+# Build outputs
+app/release/
+app/debug/
+
+# macOS
+.DS_Store
