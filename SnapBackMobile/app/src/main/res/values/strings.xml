@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">SnapBack Mobile</string>
+    <string name="accessibility_description">SnapBack Mobile uses Accessibility only to lock the screen when your paired Mac reports that Claude Code is waiting for you. No screen content is read; no events other than the lock action are produced.</string>
+    <string name="device_admin_description">SnapBack Mobile uses Device Admin as a fallback lock primitive when Accessibility is not enabled. Only the lockNow permission is used.</string>
 </resources>

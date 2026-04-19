@@ -10,6 +10,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.snapback.mobile.lock.LockDriver
 import com.snapback.mobile.pair.PairingActivity
 import com.snapback.mobile.security.KeystoreTokenStore
 import com.snapback.mobile.service.MobileForegroundService
@@ -30,9 +31,17 @@ class MainActivity : ComponentActivity() {
                     if (paired) {
                         Text("Bridge connected.", style = MaterialTheme.typography.bodyLarge)
                         Spacer(Modifier.height(8.dp))
-                        Text("1.4.0 slice A — lock mechanic arrives in later slices.",
+                        Text("1.4.0 slice B — tap below to confirm lock works.",
                              style = MaterialTheme.typography.bodySmall)
                         Spacer(Modifier.height(24.dp))
+                        Button(onClick = {
+                            val tier = LockDriver(this@MainActivity).lock()
+                            android.widget.Toast.makeText(
+                                this@MainActivity,
+                                "Lock attempted: $tier", android.widget.Toast.LENGTH_SHORT
+                            ).show()
+                        }) { Text("Test lock") }
+                        Spacer(Modifier.height(12.dp))
                         Button(onClick = {
                             KeystoreTokenStore(this@MainActivity).delete()
                             MobileForegroundService.stop(this@MainActivity)
