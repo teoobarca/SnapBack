@@ -35,25 +35,35 @@ public final class KeychainTokenStore {
     }
 
     public func generateAndStore() throws -> Data {
-        try delete() // idempotent
-
         var bytes = [UInt8](repeating: 0, count: 32)
         let status = SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes)
         guard status == errSecSuccess else { throw KeychainTokenStoreError.rngFailed }
         let token = Data(bytes)
 
-        let add: [String: Any] = [
+        // Try delete-then-add first; if add still hits errSecDuplicateItem
+        // (stale entry with different attributes), fall back to update.
+        try? delete()
+
+        let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
-            kSecAttrAccount as String: account,
+            kSecAttrAccount as String: account
+        ]
+        let attrs: [String: Any] = [
             kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,
             kSecValueData as String: token
         ]
-        let addStatus = SecItemAdd(add as CFDictionary, nil)
-        guard addStatus == errSecSuccess else {
-            throw KeychainTokenStoreError.osStatus(addStatus)
+        let addQuery = query.merging(attrs) { _, new in new }
+        let addStatus = SecItemAdd(addQuery as CFDictionary, nil)
+        if addStatus == errSecSuccess { return token }
+        if addStatus == errSecDuplicateItem {
+            let updateStatus = SecItemUpdate(query as CFDictionary, attrs as CFDictionary)
+            guard updateStatus == errSecSuccess else {
+                throw KeychainTokenStoreError.osStatus(updateStatus)
+            }
+            return token
         }
-        return token
+        throw KeychainTokenStoreError.osStatus(addStatus)
     }
 
     public func delete() throws {

@@ -34,10 +34,12 @@ import com.snapback.mobile.security.KeystoreTokenStore
 import com.snapback.mobile.service.MobileForegroundService
 import com.snapback.mobile.ui.theme.SnapBackTheme
 import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicBoolean
 
 class PairingActivity : ComponentActivity() {
 
     private val cameraExecutor = Executors.newSingleThreadExecutor()
+    private val scanned = AtomicBoolean(false)
 
     private val requestCameraPermission = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -132,6 +134,7 @@ class PairingActivity : ComponentActivity() {
                 for (b in barcodes) {
                     val raw = b.rawValue ?: continue
                     val pr = PairingResult.parse(raw) ?: continue
+                    if (!scanned.compareAndSet(false, true)) return@addOnSuccessListener
                     onResult(pr)
                     return@addOnSuccessListener
                 }

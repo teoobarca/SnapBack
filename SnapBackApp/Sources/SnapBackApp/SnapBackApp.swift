@@ -79,6 +79,13 @@ final class BridgeRuntime: ObservableObject {
 
     func pair() {
         do {
+            // Tear down any existing discovery so re-pair gets a fresh peer/token.
+            orchestrator?.stop()
+            orchestrator = nil
+            peer = nil
+            browser?.stop()
+            browser = nil
+
             let token = try tokenStore.generateAndStore()
             let desk = ProcessInfo.processInfo.hostName
             pendingQRURL = Pairing.pairingURL(token: token, deskName: desk)

@@ -14,7 +14,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.repeatOnLifecycle
 import com.snapback.mobile.security.KeystoreTokenStore
 import com.snapback.mobile.service.MobileForegroundService
 import com.snapback.mobile.ui.theme.SnapBackColors
@@ -28,6 +31,12 @@ fun SettingsScreen(
     val context = LocalContext.current
     val paired = remember { mutableStateOf(KeystoreTokenStore(context).read() != null) }
     val oem = remember { Oem.current() }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    LaunchedEffect(lifecycleOwner) {
+        lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            paired.value = KeystoreTokenStore(context).read() != null
+        }
+    }
 
     LazyColumn(
         modifier = Modifier
