@@ -53,7 +53,7 @@ Commands:
   status        Check configuration and menu-bar state
   on            Enable Claude Code hooks
   off           Disable Claude Code hooks (keeps config)
-  mode [MODE]   Get/set mode: full (sound + focus) or sound (sound only)
+  mode [MODE]   Get/set mode: full | sound | switch
   volume [VAL]  Get/set notification volume (0.0 - 1.0)
   browser [NAME]  Get/set browser (Google Chrome, Arc, Safari, Firefox, Brave)
   focus <sub>   list | add NAME | remove NAME | set NAME1 NAME2 ...
@@ -74,6 +74,7 @@ Examples:
   snapback status       # Check configuration
   snapback off          # Temporarily disable
   snapback mode sound   # Sound only, no app switching
+  snapback mode switch  # Switch only, no sound
   snapback mode full    # Sound + app switching (default)
   snapback update       # Get latest version
 
@@ -99,11 +100,11 @@ cmd_status() {
     print_info "  Focus apps: ${FOCUS_APPS[*]:-<unset>}"
     print_info "  Browser: ${BROWSER:-<unset>}"
     local current_mode="${MODE:-full}"
-    if [[ "$current_mode" == "sound" ]]; then
-      print_info "  Mode: sound (no app switching)"
-    else
-      print_info "  Mode: full (sound + app switching)"
-    fi
+    case "$current_mode" in
+      sound)  print_info "  Mode: sound (no app switching)" ;;
+      switch) print_info "  Mode: switch (app switching, no sound)" ;;
+      *)      print_info "  Mode: full (sound + app switching)" ;;
+    esac
   else
     print_error "Config not found: $CONFIG_FILE"
     all_ok=false
@@ -276,21 +277,21 @@ cmd_mode() {
     local current_mode="${MODE:-full}"
     echo ""
     echo "Current mode: $current_mode"
-    if [[ "$current_mode" == "sound" ]]; then
-      print_info "Sound only - no app switching"
-    else
-      print_info "Full mode - sound + app switching"
-    fi
+    case "$current_mode" in
+      sound)  print_info "Sound only - no app switching" ;;
+      switch) print_info "Switch only - app switching, no sound" ;;
+      *)      print_info "Full mode - sound + app switching" ;;
+    esac
     echo ""
-    echo "Change with: snapback mode <full|sound>"
+    echo "Change with: snapback mode <full|sound|switch>"
     echo ""
     exit 0
   fi
 
   # Validate mode
-  if [[ "$mode" != "full" && "$mode" != "sound" ]]; then
+  if [[ "$mode" != "full" && "$mode" != "sound" && "$mode" != "switch" ]]; then
     print_error "Invalid mode: $mode"
-    print_info "Valid modes: full, sound"
+    print_info "Valid modes: full, sound, switch"
     exit 1
   fi
 
@@ -300,11 +301,11 @@ cmd_mode() {
   }
 
   print_success "Mode set to: $mode"
-  if [[ "$mode" == "sound" ]]; then
-    print_info "Sound only - no app switching"
-  else
-    print_info "Full mode - sound + app switching"
-  fi
+  case "$mode" in
+    sound)  print_info "Sound only - no app switching" ;;
+    switch) print_info "Switch only - app switching, no sound" ;;
+    full)   print_info "Full mode - sound + app switching" ;;
+  esac
 }
 
 # ============================================================

@@ -145,7 +145,8 @@ struct MenuBarView: View {
                 set: { appState.setMode($0) }
             )) {
                 Text("Full").tag("full")
-                Text("Sound Only").tag("sound")
+                Text("Sound").tag("sound")
+                Text("Switch").tag("switch")
             }
             .pickerStyle(.segmented)
             .controlSize(.small)

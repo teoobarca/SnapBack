@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 struct MobileTabView: View {
     @ObservedObject var status: BridgeStatusPublisher
@@ -18,11 +19,13 @@ struct MobileTabView: View {
                     .foregroundColor(.secondary)
             }
             if let qr = qrImage {
-                Image(decorative: qr, scale: 1.0, orientation: .up)
-                    .resizable()
+                let nsImage = NSImage(cgImage: qr, size: NSSize(width: 180, height: 180))
+                Image(nsImage: nsImage)
                     .interpolation(.none)
-                    .scaledToFit()
-                    .frame(maxWidth: 180, maxHeight: 180)
+                    .frame(width: 180, height: 180)
+                    .padding(8)
+                    .background(Color.white)
+                    .cornerRadius(8)
                 Text("Scan with SnapBack Mobile to pair.")
                     .font(.system(size: 11))
                     .foregroundColor(.secondary)

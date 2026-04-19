@@ -57,6 +57,11 @@ if [[ "$MODE" == "sound" ]]; then
   exit 0
 fi
 
+# Switch mode: same as full but without sound
+if [[ "$MODE" == "switch" ]]; then
+  NOTIFICATION_SOUND=""
+fi
+
 # === FULL MODE BELOW ===
 
 STATE_FILE="/tmp/snapback_state"
