@@ -1,0 +1,293 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SnapBack — Vibecoding Just Got Solved</title>
+    <link rel="stylesheet" href="style.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;700&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <div class="progress-bar" id="progressBar"></div>
+    <div class="slide-counter" id="slideCounter">1 / 10</div>
+    <div class="nav-hint" id="navHint">
+      Press <kbd>&rarr;</kbd> or <kbd>Space</kbd> to start
+    </div>
+
+    <!-- SLIDE 0: Title -->
+    <section class="slide active" data-bg="dark">
+      <div class="slide-content center-content">
+        <div class="title-anim">
+          <div class="pre-title glitch-text">HACKATHON 2026</div>
+          <h1 class="mega-title">
+            <span class="snap">Snap</span><span class="back">Back</span>
+          </h1>
+          <p
+            class="subtitle typewriter"
+            data-text="Vibecoding just got solved."
+          >
+            Vibecoding just got solved.
+          </p>
+        </div>
+        <div class="author-badge">
+          <div class="badge-dot"></div>
+          <span>by Vladimir Jancar</span>
+        </div>
+      </div>
+      <div class="bg-grid"></div>
+    </section>
+
+    <!-- SLIDE 1: The Scene -->
+    <section class="slide" data-bg="dark">
+      <div class="slide-content center-content">
+        <div class="scene-emoji">&#x1F6CF;&#xFE0F;</div>
+        <h2>Picture this...</h2>
+        <p class="scene-description">
+          It's morning. You don't leave the bed.<br />
+          You open your MacBook. Launch the terminal.
+        </p>
+        <div class="terminal-prompt appear-up">
+          <div class="terminal-header">
+            <span class="terminal-dot red"></span>
+            <span class="terminal-dot yellow"></span>
+            <span class="terminal-dot green"></span>
+            <span class="terminal-title">Terminal</span>
+          </div>
+          <div class="terminal-body">
+            <span class="prompt-char">$</span> claude<span class="cursor-blink"
+              >_</span
+            >
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 2: The Prompt -->
+    <section class="slide" data-bg="dark">
+      <div class="slide-content center-content">
+        <div class="terminal-big appear-up">
+          <div class="terminal-header">
+            <span class="terminal-dot red"></span>
+            <span class="terminal-dot yellow"></span>
+            <span class="terminal-dot green"></span>
+            <span class="terminal-title">Claude Code</span>
+          </div>
+          <div class="terminal-body">
+            <span class="prompt-char">&gt;</span>
+            <span class="typed-text" id="typedPrompt"></span
+            ><span class="cursor-blink">_</span>
+          </div>
+        </div>
+        <p class="whisper appear-up delay-2">
+          Hit enter. Done. Claude is working.
+        </p>
+      </div>
+    </section>
+
+    <!-- SLIDE 3: Meanwhile... -->
+    <section class="slide" data-bg="gradient-fun">
+      <div class="slide-content center-content">
+        <h2 class="big-meanwhile">Meanwhile...</h2>
+        <div class="activity-grid">
+          <div class="activity-card appear-up">
+            <div class="activity-icon">&#x1F4FA;</div>
+            <div class="activity-label">YouTube on MacBook</div>
+            <div class="activity-detail">"Why GPT-7 changes EVERYTHING"</div>
+          </div>
+          <div class="activity-card appear-up delay-1">
+            <div class="activity-icon">&#x1F4F1;</div>
+            <div class="activity-label">Phone unlocked</div>
+            <div class="activity-detail">Reply to a message...</div>
+          </div>
+          <div class="activity-card appear-up delay-2">
+            <div class="activity-icon">&#x1F573;&#xFE0F;</div>
+            <div class="activity-label">TikTok opened</div>
+            <div class="activity-detail">Just one more scroll...</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 4: The Problem -->
+    <section class="slide" data-bg="red">
+      <div class="slide-content center-content">
+        <div class="time-display">
+          <div class="time-block">
+            <div class="time-number counter" data-target="30">0</div>
+            <div class="time-label">minutes scrolling</div>
+          </div>
+        </div>
+        <div class="problem-reveal appear-up delay-1">
+          <div class="claude-bubble">
+            <div class="claude-avatar">C</div>
+            <div class="claude-message">
+              <strong>Claude</strong>
+              <span class="time-ago">asked 27 min ago</span>
+              <p>Can I run <code>npm run build</code>?</p>
+            </div>
+          </div>
+        </div>
+        <div class="problem-stat appear-up delay-2">
+          <span class="stat-highlight"
+            >Both you AND Claude wasted 30 minutes.</span
+          >
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 5: What if... -->
+    <section class="slide" data-bg="dark">
+      <div class="slide-content center-content">
+        <h2 class="what-if">
+          What if your computer<br /><span class="highlight-orange"
+            >snapped you back?</span
+          >
+        </h2>
+      </div>
+    </section>
+
+    <!-- SLIDE 6: SnapBack intro -->
+    <section class="slide" data-bg="gradient-brand">
+      <div class="slide-content center-content">
+        <h1 class="product-title">
+          <span class="snap">Snap</span><span class="back">Back</span>
+        </h1>
+        <p class="product-tagline">Attention manager for vibe coders</p>
+        <div class="feature-list">
+          <div class="feature-item appear-up">
+            <span class="feature-num">1</span>
+            <span class="feature-text"
+              ><strong>Detects</strong> when Claude needs you</span
+            >
+          </div>
+          <div class="feature-item appear-up delay-1">
+            <span class="feature-num">2</span>
+            <span class="feature-text"
+              ><strong>Pauses</strong> YouTube / any media</span
+            >
+          </div>
+          <div class="feature-item appear-up delay-1">
+            <span class="feature-num">3</span>
+            <span class="feature-text"
+              ><strong>Focuses</strong> your IDE + terminal</span
+            >
+          </div>
+          <div class="feature-item appear-up delay-2">
+            <span class="feature-num">4</span>
+            <span class="feature-text"
+              ><strong>Phone?</strong> Turns off the screen</span
+            >
+          </div>
+          <div class="feature-item appear-up delay-2">
+            <span class="feature-num">5</span>
+            <span class="feature-text"
+              ><strong>Resumes</strong> everything when you reply</span
+            >
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 7: How it works (technical) -->
+    <section class="slide" data-bg="dark">
+      <div class="slide-content center-content">
+        <h2>How it works</h2>
+        <div class="flow-diagram">
+          <div class="flow-step appear-up">
+            <div class="flow-icon">&#x1F916;</div>
+            <div class="flow-label">Claude asks<br />a question</div>
+          </div>
+          <div class="flow-arrow appear-up delay-1">&rarr;</div>
+          <div class="flow-step appear-up delay-1">
+            <div class="flow-icon">&#x23F8;&#xFE0F;</div>
+            <div class="flow-label">Media<br />paused</div>
+          </div>
+          <div class="flow-arrow appear-up delay-1">&rarr;</div>
+          <div class="flow-step appear-up delay-2">
+            <div class="flow-icon">&#x1F4BB;</div>
+            <div class="flow-label">IDE<br />focused</div>
+          </div>
+          <div class="flow-arrow appear-up delay-2">&rarr;</div>
+          <div class="flow-step appear-up delay-2">
+            <div class="flow-icon">&#x1F4F1;</div>
+            <div class="flow-label">Phone screen<br />locked</div>
+          </div>
+        </div>
+        <div class="tech-detail appear-up delay-3">
+          <code>Claude Hooks &rarr; AppleScript + ADB &rarr; Zero config</code>
+        </div>
+        <div class="install-cmd appear-up delay-3">
+          <code
+            >curl -fsSL https://raw.githubusercontent.com/.../get.sh |
+            bash</code
+          >
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 8: Before/After -->
+    <section class="slide" data-bg="dark">
+      <div class="slide-content center-content">
+        <h2>The Difference</h2>
+        <div class="comparison">
+          <div class="compare-col before appear-up">
+            <div class="compare-header red-bg">Before SnapBack</div>
+            <div class="compare-body">
+              <div class="timeline-item">&#x1F4AC; Claude asks question</div>
+              <div class="timeline-item dim">
+                &#x231B; 5 min... still scrolling
+              </div>
+              <div class="timeline-item dim">
+                &#x231B; 15 min... still scrolling
+              </div>
+              <div class="timeline-item dim">&#x231B; 30 min... oh wait</div>
+              <div class="timeline-item bad">&#x274C; "Where was I?"</div>
+            </div>
+          </div>
+          <div class="compare-col after appear-up delay-1">
+            <div class="compare-header green-bg">With SnapBack</div>
+            <div class="compare-body">
+              <div class="timeline-item">&#x1F4AC; Claude asks question</div>
+              <div class="timeline-item good">
+                &#x23F8;&#xFE0F; YouTube pauses
+              </div>
+              <div class="timeline-item good">&#x1F4BB; IDE in your face</div>
+              <div class="timeline-item good">&#x1F4F4; Phone screen off</div>
+              <div class="timeline-item great">
+                &#x2705; Answer in 5 seconds
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 9: Closing -->
+    <section class="slide" data-bg="gradient-brand">
+      <div class="slide-content center-content">
+        <div class="final-statement">
+          <h1 class="mega-title closing-title">
+            VIBECODING<br />
+            <span class="highlight-white">JUST GOT</span><br />
+            <span class="solved-text">SOLVED</span>
+          </h1>
+        </div>
+        <div class="cta appear-up delay-2">
+          <div class="cta-install">
+            <code>curl -fsSL snapback.dev/install | bash</code>
+          </div>
+          <div class="cta-links">
+            <span>github.com/teoobarca/snapback</span>
+          </div>
+        </div>
+      </div>
+      <div class="bg-grid"></div>
+    </section>
+
+    <script src="script.js"></script>
+  </body>
+</html>
