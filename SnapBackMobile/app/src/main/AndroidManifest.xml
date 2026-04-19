@@ -83,6 +83,14 @@
             android:launchMode="singleTask"
             android:theme="@style/Theme.SnapBackMobile" />
 
+        <receiver
+            android:name=".service.EmergencyStopReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.snapback.mobile.EMERGENCY_STOP" />
+            </intent-filter>
+        </receiver>
+
     </application>
 
 </manifest>
