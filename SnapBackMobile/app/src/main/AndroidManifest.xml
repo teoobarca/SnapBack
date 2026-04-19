@@ -83,9 +83,11 @@
             android:launchMode="singleTask"
             android:theme="@style/Theme.SnapBackMobile" />
 
+        <!-- Not exported: other apps cannot trigger this. adb shell can still
+             broadcast to a non-exported receiver via explicit -n <component>. -->
         <receiver
             android:name=".service.EmergencyStopReceiver"
-            android:exported="true">
+            android:exported="false">
             <intent-filter>
                 <action android:name="com.snapback.mobile.EMERGENCY_STOP" />
             </intent-filter>

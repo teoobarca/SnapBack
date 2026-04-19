@@ -53,11 +53,14 @@ keytool -genkeypair -v -keystore keystore/release.jks \
 If the app hangs in HOLD on an emulator or test device, run:
 
 ```
-adb shell am broadcast -a com.snapback.mobile.EMERGENCY_STOP
+adb shell am broadcast -a com.snapback.mobile.EMERGENCY_STOP \
+  -n com.snapback.mobile.debug/com.snapback.mobile.service.EmergencyStopReceiver
 ```
 
 This stops the foreground service and dismisses any overlay without any
-network or state-machine involvement. Disabled in release builds.
+network or state-machine involvement. The receiver is `exported=false`, so
+other apps cannot reach it; `adb shell` targets it by explicit component.
+Disabled entirely in release builds via `BuildConfig.EMERGENCY_STOP_ENABLED`.
 
 ## Manual smoke-test checklist
 
