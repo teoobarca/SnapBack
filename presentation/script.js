@@ -11,8 +11,10 @@ let isTransitioning = false;
 
 // ---- Slide Navigation ----
 
-function goToSlide(index) {
-  if (index < 0 || index >= slides.length || isTransitioning) return;
+function goToSlide(index, force) {
+  if (index < 0 || index >= slides.length) return;
+  if (index === current) return;
+  if (isTransitioning && !force) return;
   isTransitioning = true;
 
   const prev = slides[current];
@@ -77,6 +79,11 @@ document.addEventListener('keydown', (e) => {
     case 'f':
       toggleFullscreen();
       break;
+    case '0': case '1': case '2': case '3': case '4':
+    case '5': case '6': case '7': case '8': case '9':
+      e.preventDefault();
+      goToSlide(parseInt(e.key), true);
+      break;
   }
 });
 
@@ -118,10 +125,16 @@ function toggleFullscreen() {
 // ---- Slide-Specific Animations ----
 
 function triggerSlideAnimations(index) {
-  // Slide 2: Type the prompt
+  // Slide 1: Type "claude" in terminal
+  if (index === 1) {
+    typeText('typedClaude', 'claude', 80);
+  }
+
+  // Slide 2: Type the prompt with rainbow "ultrathink"
   if (index === 2) {
-    typeText('typedPrompt',
+    typeTextRainbow('typedPrompt',
       'go and see what the client wants and build it, no mistakes, ultrathink',
+      'ultrathink',
       40
     );
   }
@@ -132,7 +145,38 @@ function triggerSlideAnimations(index) {
   }
 }
 
+// ---- Title Typewriter (JS-based, no ghost chars) ----
+
+(function() {
+  const text = 'Vibecoding just got solved.';
+  const el = document.getElementById('titleTypewriter');
+  if (!el) return;
+  let i = 0;
+  function type() {
+    if (i <= text.length) {
+      el.textContent = text.substring(0, i);
+      i++;
+      setTimeout(type, 60);
+    }
+  }
+  setTimeout(type, 800);
+})();
+
 // ---- Typing Animation ----
+
+// Rainbow colors matching Claude Code's ultrathink style
+const RAINBOW_COLORS = [
+  '#E8488A', // u - pink
+  '#AB51E3', // l - purple
+  '#5B8DEF', // t - blue
+  '#58D68D', // r - green
+  '#F4D03F', // a - yellow
+  '#EB984E', // t - orange
+  '#E8488A', // h - pink
+  '#AB51E3', // i - purple
+  '#5B8DEF', // n - blue
+  '#58D68D', // k - green
+];
 
 let typeTimeout = null;
 function typeText(elementId, text, speed) {
@@ -146,6 +190,33 @@ function typeText(elementId, text, speed) {
   function type() {
     if (i < text.length) {
       el.textContent += text.charAt(i);
+      i++;
+      typeTimeout = setTimeout(type, speed);
+    }
+  }
+  type();
+}
+
+function typeTextRainbow(elementId, text, rainbowWord, speed) {
+  const el = document.getElementById(elementId);
+  if (!el) return;
+  el.innerHTML = '';
+  let i = 0;
+  const rainbowStart = text.lastIndexOf(rainbowWord);
+
+  clearTimeout(typeTimeout);
+
+  function type() {
+    if (i < text.length) {
+      if (i >= rainbowStart && i < rainbowStart + rainbowWord.length) {
+        const span = document.createElement('span');
+        span.textContent = text.charAt(i);
+        span.style.color = RAINBOW_COLORS[i - rainbowStart];
+        span.style.fontWeight = '600';
+        el.appendChild(span);
+      } else {
+        el.appendChild(document.createTextNode(text.charAt(i)));
+      }
       i++;
       typeTimeout = setTimeout(type, speed);
     }

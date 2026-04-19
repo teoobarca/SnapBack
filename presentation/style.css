@@ -179,54 +179,16 @@ p  { font-size: 22px; line-height: 1.6; color: rgba(255,255,255,0.7); }
   color: rgba(255,255,255,0.6);
 }
 
-.typewriter {
-  overflow: hidden;
-  border-right: 2px solid var(--orange);
-  white-space: nowrap;
-  display: inline-block;
-  animation: typewriter 2s steps(30) 0.5s forwards, blink-caret 0.6s step-end infinite;
-  width: 0;
-}
-
-@keyframes typewriter {
-  from { width: 0; }
-  to { width: 100%; }
-}
-
-@keyframes blink-caret {
-  from, to { border-color: transparent; }
-  50% { border-color: var(--orange); }
-}
-
-.author-badge {
-  margin-top: 48px;
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 20px;
-  border: 1px solid rgba(255,255,255,0.1);
-  border-radius: 100px;
-  font-size: 15px;
-  color: rgba(255,255,255,0.5);
-}
-
-.badge-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--green);
-  animation: pulse-dot 2s infinite;
-}
-
-@keyframes pulse-dot {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.3; }
+.typewriter-text {
+  font-size: 28px;
+  font-weight: 500;
+  color: rgba(255,255,255,0.6);
 }
 
 /* ---- Scene Slide ---- */
-.scene-emoji {
-  font-size: 80px;
+.scene-icon {
   margin-bottom: 24px;
+  opacity: 0.6;
 }
 
 .scene-description {
@@ -332,8 +294,9 @@ p  { font-size: 22px; line-height: 1.6; color: rgba(255,255,255,0.7); }
 }
 
 .activity-icon {
-  font-size: 48px;
   margin-bottom: 16px;
+  display: flex;
+  justify-content: center;
 }
 
 .activity-label {
@@ -480,16 +443,13 @@ p  { font-size: 22px; line-height: 1.6; color: rgba(255,255,255,0.7); }
 }
 
 .feature-num {
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
   border-radius: 8px;
   background: var(--orange);
-  color: white;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-weight: 700;
-  font-size: 15px;
   flex-shrink: 0;
 }
 
@@ -522,8 +482,9 @@ p  { font-size: 22px; line-height: 1.6; color: rgba(255,255,255,0.7); }
 }
 
 .flow-icon {
-  font-size: 36px;
   margin-bottom: 10px;
+  display: flex;
+  justify-content: center;
 }
 
 .flow-label {
@@ -533,28 +494,28 @@ p  { font-size: 22px; line-height: 1.6; color: rgba(255,255,255,0.7); }
 }
 
 .flow-arrow {
-  font-size: 28px;
-  color: var(--orange);
+  display: flex;
+  align-items: center;
 }
 
-.tech-detail {
-  margin-bottom: 16px;
+.tech-badges {
+  text-align: center;
 }
 
-.tech-detail code, .install-cmd code {
-  background: rgba(255,255,255,0.06);
-  border: 1px solid rgba(255,255,255,0.08);
-  padding: 10px 20px;
-  border-radius: 8px;
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 15px;
-  color: var(--orange);
+.tech-badge.zero-config {
   display: inline-block;
+  font-size: 32px;
+  font-weight: 900;
+  letter-spacing: 4px;
+  color: var(--orange);
+  text-shadow: 0 0 40px rgba(255, 107, 53, 0.3);
+  margin-bottom: 8px;
 }
 
-.install-cmd code {
-  color: var(--green);
-  font-size: 14px;
+.tech-badge-sub {
+  font-size: 16px;
+  color: rgba(255,255,255,0.4);
+  font-family: 'JetBrains Mono', monospace;
 }
 
 /* ---- Comparison ---- */
@@ -640,25 +601,40 @@ p  { font-size: 22px; line-height: 1.6; color: rgba(255,255,255,0.7); }
   align-items: center;
 }
 
+.vibecoded-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 18px;
+  border: 1px solid rgba(255, 107, 53, 0.25);
+  border-radius: 100px;
+  font-size: 15px;
+  color: rgba(255,255,255,0.5);
+  margin-bottom: 36px;
+}
+
+.cta-install {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: center;
+}
+
 .cta-install code {
   background: rgba(255,255,255,0.06);
   border: 1px solid rgba(255,255,255,0.12);
-  padding: 14px 28px;
-  border-radius: 12px;
+  padding: 10px 24px;
+  border-radius: 8px;
   font-family: 'JetBrains Mono', monospace;
-  font-size: 16px;
+  font-size: 15px;
   color: var(--green);
-  cursor: pointer;
-  transition: background 0.3s;
-}
-
-.cta-install code:hover {
-  background: rgba(255,255,255,0.1);
+  display: block;
 }
 
 .cta-links {
   font-size: 15px;
   color: rgba(255,255,255,0.3);
+  margin-top: 10px;
 }
 
 /* ---- Animations ---- */
