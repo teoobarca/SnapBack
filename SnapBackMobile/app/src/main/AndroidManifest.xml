@@ -81,7 +81,7 @@
             android:exported="false"
             android:excludeFromRecents="true"
             android:launchMode="singleTask"
-            android:theme="@style/Theme.SnapBackMobile" />
+            android:theme="@style/Theme.SnapBackMobile.Overlay" />
 
         <!-- Not exported: other apps cannot trigger this. adb shell can still
              broadcast to a non-exported receiver via explicit -n <component>. -->

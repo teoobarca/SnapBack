@@ -7,32 +7,57 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material3.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.snapback.mobile.ui.theme.SnapBackColors
 
-/**
- * Last-resort lock: a fullscreen activity. Dismissible only via the
- * orchestrator's `releaseHold()` finishing it.
- */
 class OverlayActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
+            Box(modifier = Modifier.fillMaxSize().background(SnapBackColors.OverlayBg)) {
                 Column(
                     modifier = Modifier.fillMaxSize().padding(32.dp),
                     verticalArrangement = Arrangement.Center,
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Text("Claude is waiting on your Mac.", color = Color.White,
-                         style = MaterialTheme.typography.headlineMedium)
+                    Box(
+                        modifier = Modifier
+                            .width(48.dp)
+                            .height(4.dp)
+                            .background(SnapBackColors.Orange, RoundedCornerShape(2.dp))
+                    )
+                    Spacer(Modifier.height(32.dp))
+                    Icon(
+                        Icons.Rounded.Lock,
+                        contentDescription = null,
+                        tint = SnapBackColors.Orange,
+                        modifier = Modifier.size(64.dp),
+                    )
                     Spacer(Modifier.height(24.dp))
-                    Text("This overlay will dismiss once you respond.", color = Color.White,
-                         style = MaterialTheme.typography.bodyMedium)
+                    Text(
+                        "Claude is waiting on your Mac.",
+                        color = Color.White,
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        textAlign = TextAlign.Center,
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    Text(
+                        "This overlay will dismiss once you respond.",
+                        color = SnapBackColors.MutedGray,
+                        style = MaterialTheme.typography.bodyMedium,
+                        textAlign = TextAlign.Center,
+                    )
                 }
             }
         }

@@ -1,6 +1,11 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <style name="Theme.SnapBackMobile" parent="android:Theme.Material.NoActionBar">
-        <item name="android:statusBarColor">@color/background_dark</item>
-        <item name="android:windowBackground">@color/background_dark</item>
+    <style name="Theme.SnapBackMobile" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:statusBarColor">@color/white</item>
+        <item name="android:windowBackground">@color/light_background</item>
+        <item name="android:windowLightStatusBar">true</item>
+    </style>
+    <style name="Theme.SnapBackMobile.Overlay" parent="android:Theme.Material.NoActionBar">
+        <item name="android:statusBarColor">#1A1A1A</item>
+        <item name="android:windowBackground">#1A1A1A</item>
     </style>
 </resources>

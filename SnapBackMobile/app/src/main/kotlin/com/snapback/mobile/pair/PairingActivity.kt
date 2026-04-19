@@ -14,12 +14,15 @@ import androidx.camera.core.ImageProxy
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
@@ -29,6 +32,7 @@ import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.common.InputImage
 import com.snapback.mobile.security.KeystoreTokenStore
 import com.snapback.mobile.service.MobileForegroundService
+import com.snapback.mobile.ui.theme.SnapBackTheme
 import java.util.concurrent.Executors
 
 class PairingActivity : ComponentActivity() {
@@ -42,7 +46,7 @@ class PairingActivity : ComponentActivity() {
             Toast.makeText(this, "Camera permission required to scan the QR", Toast.LENGTH_LONG).show()
             finish()
         } else {
-            setContent { ScannerUI() }
+            setContent { SnapBackTheme { ScannerUI() } }
         }
     }
 
@@ -50,7 +54,7 @@ class PairingActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
             == PackageManager.PERMISSION_GRANTED) {
-            setContent { ScannerUI() }
+            setContent { SnapBackTheme { ScannerUI() } }
         } else {
             requestCameraPermission.launch(Manifest.permission.CAMERA)
         }
@@ -80,9 +84,12 @@ class PairingActivity : ComponentActivity() {
             Text(
                 statusText,
                 style = MaterialTheme.typography.bodyMedium,
+                color = Color.White,
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .padding(24.dp)
+                    .background(Color.Black.copy(alpha = 0.6f), RoundedCornerShape(8.dp))
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
             )
         }
     }

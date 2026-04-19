@@ -3,4 +3,6 @@
     <color name="snapback_orange">#E07D4F</color>
     <color name="snapback_orange_dark">#B8633F</color>
     <color name="background_dark">#121212</color>
+    <color name="white">#FFFFFF</color>
+    <color name="light_background">#FAFAFA</color>
 </resources>
