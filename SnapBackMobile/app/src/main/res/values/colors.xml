@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="snapback_orange">#E07D4F</color>
+    <color name="snapback_orange_dark">#B8633F</color>
+    <color name="background_dark">#121212</color>
+</resources>

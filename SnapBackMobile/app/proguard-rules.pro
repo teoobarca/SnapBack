@@ -1,0 +1,3 @@
+-keep class com.snapback.mobile.service.EmergencyStopReceiver { *; }
+-keep class com.snapback.mobile.lock.SnapBackAccessibilityService { *; }
+-keep class com.snapback.mobile.lock.SnapBackDeviceAdminReceiver { *; }
