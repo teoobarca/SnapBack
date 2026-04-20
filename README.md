@@ -10,6 +10,7 @@
 <p align="center">
   <a href="#installation">Installation</a> •
   <a href="#how-it-works">How It Works</a> •
+  <a href="#cli">CLI</a> •
   <a href="#configuration">Configuration</a> •
   <a href="#troubleshooting">Troubleshooting</a>
 </p>
@@ -47,53 +48,31 @@ curl -fsSL https://raw.githubusercontent.com/teoobarca/snapback/main/get.sh | ba
 
 The installer will:
 - Download SnapBack to `~/.snapback/`
-- Add `snapback` command to your PATH
-- Guide you through configuration
+- Add the `snapback` command to your PATH
+- Walk you through configuration (focus apps, browser, etc.)
+- Set up Claude Code hooks automatically
+- Build the optional menu-bar app (if Swift is available)
 
 <details>
-<summary>Alternative: Manual installation</summary>
+<summary>Manual installation</summary>
 
 ```bash
-git clone https://github.com/teoobarca/snapback.git
-cd snapback
+git clone https://github.com/teoobarca/snapback.git ~/.snapback
+cd ~/.snapback
 ./snapback install
 ```
 
 </details>
 
----
-
-## CLI Usage
+<details>
+<summary>Non-interactive install (CI / dotfiles)</summary>
 
 ```bash
-snapback install [-y]        # Interactive installation and configuration
-snapback status              # Check configuration and menu-bar state
-snapback on                  # Enable Claude Code hooks
-snapback off                 # Disable Claude Code hooks (keeps config)
-snapback mode [MODE]         # Get/set mode: full (sound + focus) or sound (sound only)
-snapback volume [VAL]        # Get/set notification volume (0.0 - 1.0)
-snapback browser [NAME]      # Get/set browser (Google Chrome, Arc, Safari, Firefox, Brave)
-snapback focus list          # List focus apps
-snapback focus add NAME      # Add an app to focus list
-snapback focus remove NAME   # Remove an app from focus list
-snapback focus set N1 N2 ... # Replace the entire focus list
-snapback config get KEY      # Get a config value
-snapback config set KEY VAL  # Set a config value
-snapback config show         # Show all config values
-snapback config path         # Print config file path
-snapback test                # Play a notification preview
-snapback app                 # Launch the menu-bar app (if installed)
-snapback update              # Update to latest version (and rebuild menu-bar app if installed)
-snapback uninstall           # Remove config, hooks, and menu-bar app
+curl -fsSL https://raw.githubusercontent.com/teoobarca/snapback/main/get.sh | bash
+snapback install -y   # accepts defaults: Cursor + Ghostty, Chrome, full mode
 ```
 
-### Menu-bar app (optional)
-
-SnapBack ships with an optional SwiftUI menu-bar app that lets you tweak
-volume, mode, focus apps, and the Claude Code on/off switch without a
-terminal. It's built locally from source during `snapback install`
-(requires Xcode Command Line Tools / Swift 5.9+, macOS 13+). Open with
-`snapback app` or from `/Applications/SnapBack.app`.
+</details>
 
 ---
 
@@ -109,9 +88,40 @@ terminal. It's built locally from source during `snapback install`
    Claude asks            You respond            Back to video
 ```
 
-**Triggers:**
-- `PermissionRequest` / `Stop` → Pauses media, focuses IDE
-- `PostToolUse` / `UserPromptSubmit` → Returns to previous app, resumes media
+SnapBack registers four [Claude Code hooks](https://docs.anthropic.com/en/docs/claude-code/hooks):
+
+| Hook | Fires when | SnapBack action |
+|------|-----------|-----------------|
+| `PermissionRequest` | Claude asks for permission | Pause media, focus IDE |
+| `Stop` | Claude finishes a turn | Pause media, focus IDE |
+| `PostToolUse` | A tool completes successfully | Resume media, return to previous app |
+| `UserPromptSubmit` | You send a message | Resume media, return to previous app |
+
+---
+
+## CLI
+
+```
+snapback install [-y]        # Install and configure (or reconfigure)
+snapback status              # Show config, hooks, permissions, menu-bar app
+snapback on | off            # Enable / disable hooks (keeps config)
+snapback mode [full|sound|switch]  # full = sound + focus, sound = sound only, switch = focus only
+snapback volume [0.0-1.0]   # Get or set notification volume
+snapback browser [NAME]      # Get or set browser (Chrome, Arc, Brave, Edge, Firefox)
+snapback focus list|add|remove|set  # Manage focus apps
+snapback config show|get|set|path   # Read or write config values
+snapback test                # Play a notification preview
+snapback app                 # Launch the menu-bar app
+snapback update              # Pull latest version and rebuild menu-bar app
+snapback uninstall           # Remove everything (config, hooks, app, symlinks)
+```
+
+### Menu-bar app
+
+An optional SwiftUI menu-bar app lets you toggle SnapBack, change mode/volume,
+and manage focus apps without opening a terminal. Built locally during
+`snapback install` (requires Xcode Command Line Tools, macOS 13+). Launch with
+`snapback app` or from `/Applications/SnapBack.app`.
 
 ---
 
@@ -121,19 +131,50 @@ Config file: `~/.config/snapback/config`
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `FOCUS_APPS` | `("Cursor" "Ghostty")` | Apps to focus (in order, last stays on top) |
+| `FOCUS_APPS` | `("Cursor" "Ghostty")` | Apps to focus, in order (last stays on top) |
 | `FOCUS_DELAY` | `0.5` | Seconds between focusing each app |
 | `BROWSER` | `"Google Chrome"` | Browser for media control |
-| `SEEK_BACK_SECONDS` | `1` | Rewind when resuming video |
+| `SEEK_BACK_SECONDS` | `1` | Rewind amount when resuming video |
 | `THROTTLE_SECONDS` | `2` | Cooldown between triggers |
-| `NOTIFICATION_SOUND` | `"default"` | Sound file, `"default"`, or `""` to disable |
+| `NOTIFICATION_SOUND` | `"default"` | `"default"`, path to `.mp3`, or `""` to disable |
+| `VOLUME` | `"1.0"` | Notification volume (`0.0` – `1.0`) |
+| `MODE` | `"full"` | `"full"`, `"sound"`, or `"switch"` |
+
+All options can be changed via `snapback config set KEY VALUE` or the menu-bar app.
 
 ---
 
-## Claude Code Hooks
+## Requirements
+
+- **macOS 12+** (uses AppleScript for window and media automation)
+- **Chromium-based browser** — Chrome, Arc, Brave, Edge (Safari support planned)
+- **Claude Code** with hooks support
+- `jq` — for automatic hook installation (bundled with Homebrew, etc.)
+
+---
+
+## Known Limitations
+
+> These are Claude Code hook constraints, not SnapBack bugs.
+
+- **No decline hook** — declining a permission request doesn't fire a hook, so SnapBack can't detect it. You'll switch back manually.
+- **Failed tools don't trigger** — `PostToolUse` only fires on successful tool execution.
+
+---
+
+## Troubleshooting
+
+| Issue | Fix |
+|-------|-----|
+| Media doesn't pause | Run `./snapback.sh` manually once to trigger macOS permission dialogs |
+| Permission errors | System Settings → Privacy & Security → Automation → enable for your terminal |
+| Apps not focusing | Increase `FOCUS_DELAY` to `0.7` or `1.0` |
+| Too many notifications | Increase `THROTTLE_SECONDS` |
+| Wrong app name | Check names with: `osascript -e 'tell app "System Events" to get name of every process'` |
+| General diagnosis | Run `snapback status` for a full health check |
 
 <details>
-<summary>Manual hook configuration (if you skipped the installer)</summary>
+<summary>Manual hook setup (if you skipped the installer)</summary>
 
 Add to `~/.claude/settings.json`:
 
@@ -141,16 +182,16 @@ Add to `~/.claude/settings.json`:
 {
   "hooks": {
     "PermissionRequest": [
-      {"matcher": "*", "hooks": [{"type": "command", "command": "/path/to/snapback.sh"}]}
+      { "matcher": "*", "hooks": [{ "type": "command", "command": "~/.snapback/snapback.sh" }] }
     ],
     "Stop": [
-      {"hooks": [{"type": "command", "command": "/path/to/snapback.sh"}]}
+      { "hooks": [{ "type": "command", "command": "~/.snapback/snapback.sh" }] }
     ],
     "PostToolUse": [
-      {"matcher": "Edit|Write|Bash", "hooks": [{"type": "command", "command": "/path/to/snapback-resume.sh"}]}
+      { "matcher": "Edit|Write|Bash", "hooks": [{ "type": "command", "command": "~/.snapback/snapback-resume.sh" }] }
     ],
     "UserPromptSubmit": [
-      {"hooks": [{"type": "command", "command": "/path/to/snapback-resume.sh"}]}
+      { "hooks": [{ "type": "command", "command": "~/.snapback/snapback-resume.sh" }] }
     ]
   }
 }
@@ -160,55 +201,23 @@ Add to `~/.claude/settings.json`:
 
 ---
 
-## Known Limitations
+## Mobile companion (experimental)
 
-> **Note:** These are Claude Code hook limitations, not SnapBack bugs.
+v1.3.0 ships a desktop bridge daemon inside the menu-bar app that will talk to
+a future Android companion to lock your phone screen when Claude blocks on you.
+The bridge is feature-complete against the [wire protocol](docs/PROTOCOL.md)
+and can be tested with the included protocol test vectors.
 
-- **No decline hook** — If you decline a permission request, SnapBack can't detect it. You'll need to switch back manually.
-- **Failed tools don't trigger** — `PostToolUse` only fires on successful tool execution.
+```bash
+snapback mobile enable      # start the bridge daemon
+snapback mobile status      # check if the socket is live
+snapback mobile pair        # pair with the Android app (when available)
+```
 
----
-
-## Troubleshooting
-
-| Issue | Solution |
-|-------|----------|
-| Video doesn't pause | Run `./snapback.sh` manually to trigger permission dialogs |
-| Permission errors | System Settings → Privacy & Security → Automation |
-| Apps not focusing | Increase `FOCUS_DELAY` to `0.7` or `1.0` |
-| Too many notifications | Increase `THROTTLE_SECONDS` |
-| Check current status | Run `snapback status` |
-
----
-
-## Requirements
-
-- macOS (uses AppleScript for automation)
-- Chromium-based browser (Chrome, Arc, Brave, Edge)
-- `jq` (optional, for automatic hook installation)
+The Android app is in development. See `docs/PROTOCOL.md` for the full spec.
 
 ---
 
 ## License
 
 MIT © [teoobarca](https://github.com/teoobarca)
-
-## Mobile (experimental, 1.3.0 preview)
-
-1.3.0 ships the desktop side of a mobile companion: a persistent bridge daemon
-inside SnapBackApp that will talk to a future Android app to force-lock your
-phone when Claude Code blocks on you. No phone app is shipped yet. The bridge
-is feature-complete against `docs/PROTOCOL.md` and can be tested against an
-in-process Swift peer.
-
-Turn it on:
-
-```sh
-snapback mobile enable
-snapback mobile status
-```
-
-When the Android companion ships in 1.4.0, the menu-bar app will show a "Pair
-mobile…" QR that completes the link. Until then, `snapback mobile status`
-reports whether the bridge socket is live. See `docs/superpowers/specs/2026-04-18-mobile-companion-design.md`
-for the full design.
