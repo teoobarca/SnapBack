@@ -7,3 +7,4 @@ SnapBackApp/SnapBack.app/
 
 # Git worktrees
 .worktrees/
+*.claude

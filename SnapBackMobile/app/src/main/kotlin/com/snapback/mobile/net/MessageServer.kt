@@ -15,7 +15,8 @@ import java.util.concurrent.atomic.AtomicBoolean
 class MessageServer(
     private val secret: ByteArray,
     val port: Int,
-    private val onMessage: (ProtocolMessage) -> Unit
+    private val onMessage: (ProtocolMessage) -> Unit,
+    val holdStateProvider: () -> Boolean = { false }
 ) {
     private val running = AtomicBoolean(false)
     private var serverSocket: ServerSocket? = null
@@ -61,7 +62,7 @@ class MessageServer(
                     ProtocolMessageType.Heartbeat,
                     ProtocolMessageType.Resync -> reply(
                         writer, ProtocolMessageType.Pong,
-                        listOf("hold" to JsonValue.Bool(false))  // slice A: never holding
+                        listOf("hold" to JsonValue.Bool(holdStateProvider()))
                     )
                     else -> {}
                 }

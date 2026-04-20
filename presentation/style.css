@@ -518,64 +518,39 @@ p  { font-size: 22px; line-height: 1.6; color: rgba(255,255,255,0.7); }
   font-family: 'JetBrains Mono', monospace;
 }
 
-/* ---- Comparison ---- */
-.comparison {
+
+/* ---- App Showcase ---- */
+.app-showcase {
   display: flex;
-  gap: 32px;
+  align-items: center;
   justify-content: center;
+  gap: 48px;
   flex-wrap: wrap;
 }
 
-.compare-col {
-  width: 380px;
+.app-screenshot {
+  flex-shrink: 0;
+}
+
+.app-screenshot img {
+  width: 280px;
   border-radius: 16px;
-  overflow: hidden;
-  border: 1px solid rgba(255,255,255,0.08);
+  box-shadow: 0 20px 60px rgba(0,0,0,0.6);
 }
 
-.compare-header {
-  padding: 16px;
-  font-weight: 700;
-  font-size: 18px;
-  text-align: center;
-}
-
-.red-bg { background: rgba(255, 59, 48, 0.2); }
-.green-bg { background: rgba(0, 210, 106, 0.2); }
-
-.compare-body {
-  padding: 20px;
+.app-features {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-}
-
-.timeline-item {
-  padding: 10px 16px;
-  border-radius: 8px;
-  font-size: 16px;
+  gap: 18px;
   text-align: left;
-  background: rgba(255,255,255,0.03);
 }
 
-.timeline-item.dim {
-  opacity: 0.4;
-}
-
-.timeline-item.bad {
-  background: rgba(255, 59, 48, 0.15);
-  color: var(--red);
-  font-weight: 600;
-}
-
-.timeline-item.good {
-  background: rgba(0, 210, 106, 0.08);
-}
-
-.timeline-item.great {
-  background: rgba(0, 210, 106, 0.2);
-  color: var(--green);
-  font-weight: 600;
+.app-feature-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font-size: 19px;
+  color: rgba(255,255,255,0.8);
 }
 
 /* ---- Closing ---- */

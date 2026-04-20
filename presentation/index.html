@@ -58,7 +58,8 @@
         <h2>Picture this...</h2>
         <p class="scene-description">
           It's morning. You don't leave the bed.<br />
-          You open your MacBook. Launch the terminal.
+          You open your MacBook. Launch the terminal.<br />
+          Start Claude Code.
         </p>
         <div class="terminal-prompt appear-up">
           <div class="terminal-header">
@@ -92,7 +93,7 @@
           </div>
         </div>
         <p class="whisper appear-up delay-2">
-          Hit enter. Done. Claude is working.
+          Write sophisticated prompt, hit Enter, Vibe...
         </p>
       </div>
     </section>
@@ -182,7 +183,7 @@
             <div class="claude-message">
               <strong>Claude</strong>
               <span class="time-ago">asked 27 min ago</span>
-              <p>Can I run <code>npm run build</code>?</p>
+              <p>Can I run <code>npm install</code>?</p>
             </div>
           </div>
         </div>
@@ -316,165 +317,70 @@
       </div>
     </section>
 
-    <!-- SLIDE 7: How it works (technical) -->
+    <!-- SLIDE 7: Works out of the box -->
     <section class="slide" data-bg="dark">
       <div class="slide-content center-content">
-        <h2>How it works</h2>
-        <div class="flow-diagram">
-          <div class="flow-step appear-up">
-            <div class="flow-icon">
+        <h2>Works out of the box</h2>
+        <div class="app-showcase">
+          <div class="app-screenshot appear-up">
+            <img src="app-screenshot.png" alt="SnapBack menu bar app" />
+          </div>
+          <div class="app-features appear-up delay-1">
+            <div class="app-feature-item">
               <svg
-                width="36"
-                height="36"
+                width="20"
+                height="20"
                 viewBox="0 0 24 24"
                 fill="none"
-                stroke="var(--orange)"
-                stroke-width="1.5"
+                stroke="var(--green)"
+                stroke-width="2.5"
                 stroke-linecap="round"
-                stroke-linejoin="round"
               >
-                <path
-                  d="M12 2a7 7 0 0 1 7 7c0 2.38-1.19 4.47-3 5.74V17a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1v-2.26C6.19 13.47 5 11.38 5 9a7 7 0 0 1 7-7z"
-                />
-                <line x1="9" y1="21" x2="15" y2="21" />
-                <line x1="10" y1="24" x2="14" y2="24" />
+                <polyline points="20 6 9 17 4 12" />
               </svg>
+              <span>Menu bar app — always accessible</span>
             </div>
-            <div class="flow-label">Claude asks<br />a question</div>
-          </div>
-          <div class="flow-arrow appear-up delay-1">
-            <svg
-              width="24"
-              height="24"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="var(--orange)"
-              stroke-width="2"
-              stroke-linecap="round"
-            >
-              <line x1="5" y1="12" x2="19" y2="12" />
-              <polyline points="12 5 19 12 12 19" />
-            </svg>
-          </div>
-          <div class="flow-step appear-up delay-1">
-            <div class="flow-icon">
+            <div class="app-feature-item">
               <svg
-                width="36"
-                height="36"
+                width="20"
+                height="20"
                 viewBox="0 0 24 24"
                 fill="none"
-                stroke="var(--orange)"
-                stroke-width="1.5"
+                stroke="var(--green)"
+                stroke-width="2.5"
                 stroke-linecap="round"
               >
-                <rect x="6" y="4" width="4" height="16" rx="1" />
-                <rect x="14" y="4" width="4" height="16" rx="1" />
+                <polyline points="20 6 9 17 4 12" />
               </svg>
+              <span>QR code pairing with your phone</span>
             </div>
-            <div class="flow-label">Media<br />paused</div>
-          </div>
-          <div class="flow-arrow appear-up delay-1">
-            <svg
-              width="24"
-              height="24"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="var(--orange)"
-              stroke-width="2"
-              stroke-linecap="round"
-            >
-              <line x1="5" y1="12" x2="19" y2="12" />
-              <polyline points="12 5 19 12 12 19" />
-            </svg>
-          </div>
-          <div class="flow-step appear-up delay-2">
-            <div class="flow-icon">
+            <div class="app-feature-item">
               <svg
-                width="36"
-                height="36"
+                width="20"
+                height="20"
                 viewBox="0 0 24 24"
                 fill="none"
-                stroke="var(--orange)"
-                stroke-width="1.5"
+                stroke="var(--green)"
+                stroke-width="2.5"
                 stroke-linecap="round"
               >
-                <rect x="2" y="3" width="20" height="14" rx="2" />
-                <line x1="8" y1="21" x2="16" y2="21" />
-                <line x1="12" y1="17" x2="12" y2="21" />
+                <polyline points="20 6 9 17 4 12" />
               </svg>
+              <span>Volume, mode & focus app controls</span>
             </div>
-            <div class="flow-label">IDE<br />focused</div>
-          </div>
-          <div class="flow-arrow appear-up delay-2">
-            <svg
-              width="24"
-              height="24"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="var(--orange)"
-              stroke-width="2"
-              stroke-linecap="round"
-            >
-              <line x1="5" y1="12" x2="19" y2="12" />
-              <polyline points="12 5 19 12 12 19" />
-            </svg>
-          </div>
-          <div class="flow-step appear-up delay-2">
-            <div class="flow-icon">
+            <div class="app-feature-item">
               <svg
-                width="36"
-                height="36"
+                width="20"
+                height="20"
                 viewBox="0 0 24 24"
                 fill="none"
-                stroke="var(--orange)"
-                stroke-width="1.5"
+                stroke="var(--green)"
+                stroke-width="2.5"
                 stroke-linecap="round"
               >
-                <rect x="5" y="2" width="14" height="20" rx="2" />
-                <line x1="12" y1="18" x2="12.01" y2="18" />
-                <line
-                  x1="2"
-                  y1="12"
-                  x2="22"
-                  y2="12"
-                  stroke-dasharray="3 3"
-                  opacity="0.4"
-                />
+                <polyline points="20 6 9 17 4 12" />
               </svg>
-            </div>
-            <div class="flow-label">Phone screen locked</div>
-          </div>
-        </div>
-        <div class="tech-badges appear-up delay-3">
-          <div class="tech-badge zero-config">ZERO CONFIG</div>
-          <div class="tech-badge-sub">Powered by Claude Hooks</div>
-        </div>
-      </div>
-    </section>
-
-    <!-- SLIDE 8: Before/After -->
-    <section class="slide" data-bg="dark">
-      <div class="slide-content center-content">
-        <h2>The Difference</h2>
-        <div class="comparison">
-          <div class="compare-col before appear-up">
-            <div class="compare-header red-bg">Before SnapBack</div>
-            <div class="compare-body">
-              <div class="timeline-item">Claude asks question</div>
-              <div class="timeline-item dim">5 min... still scrolling</div>
-              <div class="timeline-item dim">15 min... still scrolling</div>
-              <div class="timeline-item dim">30 min... oh wait</div>
-              <div class="timeline-item bad">"Where was I?"</div>
-            </div>
-          </div>
-          <div class="compare-col after appear-up delay-1">
-            <div class="compare-header green-bg">With SnapBack</div>
-            <div class="compare-body">
-              <div class="timeline-item">Claude asks question</div>
-              <div class="timeline-item good">YouTube pauses instantly</div>
-              <div class="timeline-item good">IDE in your face</div>
-              <div class="timeline-item good">Phone screen goes dark</div>
-              <div class="timeline-item great">Answer in 5 seconds</div>
+              <span>One toggle — on or off</span>
             </div>
           </div>
         </div>

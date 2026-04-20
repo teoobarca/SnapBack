@@ -41,6 +41,7 @@ class MobileForegroundService : Service() {
     private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
     private var ttlJob: Job? = null
     private val mainHandler = Handler(Looper.getMainLooper())
+    private var activeSecret: ByteArray? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -53,7 +54,15 @@ class MobileForegroundService : Service() {
         registerUserPresent()
     }
 
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = START_STICKY
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        val stored = KeystoreTokenStore(this).read()
+        if (stored != null && !stored.contentEquals(activeSecret)) {
+            Log.i(TAG, "token changed (re-pair); restarting bridge")
+            stopBridge()
+            startBridge()
+        }
+        return START_STICKY
+    }
 
     override fun onDestroy() {
         unregisterUserPresent()
@@ -66,14 +75,18 @@ class MobileForegroundService : Service() {
     private fun startBridge() {
         val token = KeystoreTokenStore(this).read() ?: run {
             Log.w(TAG, "no paired token; service idle")
+            activeSecret = null
             return
         }
+        activeSecret = token
         val locks = WifiLocks(this).also { it.holdMulticast() }
         this.locks = locks
         this.lockDriver = LockDriver(this)
         this.sm = HoldStateMachine(ttlMs = BuildConfig.HOLD_TTL_MS)
 
-        val server = MessageServer(token, DEFAULT_PORT) { msg -> mainHandler.post { onMessage(msg) } }
+        val sm = this.sm!!
+        val server = MessageServer(token, DEFAULT_PORT, { msg -> mainHandler.post { onMessage(msg) } },
+            holdStateProvider = { sm.state == com.snapback.mobile.state.HoldState.Hold })
         server.start()
         this.server = server
 
