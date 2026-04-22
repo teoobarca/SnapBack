@@ -30,11 +30,21 @@ fun SettingsScreen(
 ) {
     val context = LocalContext.current
     val paired = remember { mutableStateOf(KeystoreTokenStore(context).read() != null) }
+    val clientConnected = remember { mutableStateOf(MobileForegroundService.isClientConnected()) }
     val oem = remember { Oem.current() }
     val lifecycleOwner = LocalLifecycleOwner.current
     LaunchedEffect(lifecycleOwner) {
         lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
             paired.value = KeystoreTokenStore(context).read() != null
+            clientConnected.value = MobileForegroundService.isClientConnected()
+        }
+    }
+    // Poll connection state every 2s so UI stays fresh
+    LaunchedEffect(Unit) {
+        while (true) {
+            kotlinx.coroutines.delay(2000)
+            paired.value = KeystoreTokenStore(context).read() != null
+            clientConnected.value = MobileForegroundService.isClientConnected()
         }
     }
 
@@ -58,7 +68,7 @@ fun SettingsScreen(
                     elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
-                        if (paired.value) {
+                        if (paired.value && clientConnected.value) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Box(
                                     modifier = Modifier
@@ -108,6 +118,44 @@ fun SettingsScreen(
                                 ) {
                                     Text("Unpair")
                                 }
+                            }
+                        } else if (paired.value) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(10.dp)
+                                        .clip(CircleShape)
+                                        .background(SnapBackColors.Orange)
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Text(
+                                    "Paired — waiting",
+                                    color = SnapBackColors.Orange,
+                                    style = MaterialTheme.typography.titleMedium,
+                                )
+                            }
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                "Token stored. Waiting for Mac to connect.",
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
+
+                            Spacer(Modifier.height(16.dp))
+
+                            OutlinedButton(
+                                onClick = {
+                                    KeystoreTokenStore(context).delete()
+                                    MobileForegroundService.stop(context)
+                                    paired.value = false
+                                    onUnpair()
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    contentColor = MaterialTheme.colorScheme.error,
+                                ),
+                            ) {
+                                Text("Unpair")
                             }
                         } else {
                             Column(

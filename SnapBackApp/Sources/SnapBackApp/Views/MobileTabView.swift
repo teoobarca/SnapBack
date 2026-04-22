@@ -5,6 +5,7 @@ struct MobileTabView: View {
     @ObservedObject var status: BridgeStatusPublisher
     var onPair: () -> Void
     var onUnpair: () -> Void
+    var onCancel: () -> Void
     var qrImage: CGImage?
 
     var body: some View {
@@ -29,7 +30,7 @@ struct MobileTabView: View {
                 Text("Scan with SnapBack Mobile to pair.")
                     .font(.system(size: 11))
                     .foregroundColor(.secondary)
-                Button("Cancel", action: onUnpair)
+                Button("Cancel", action: onCancel)
                     .controlSize(.small)
             } else {
                 switch status.current {

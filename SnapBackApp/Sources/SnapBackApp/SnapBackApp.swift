@@ -95,6 +95,22 @@ final class BridgeRuntime: ObservableObject {
         }
     }
 
+    func cancelPairing() {
+        // Cancel stops discovery and clears the QR without sending invalidate.
+        // If the phone already connected, send invalidate so it wipes its token.
+        if peer != nil {
+            unpair()
+            return
+        }
+        orchestrator?.stop()
+        orchestrator = nil
+        browser?.stop()
+        browser = nil
+        try? tokenStore.delete()
+        pendingQRURL = nil
+        status.update(.unpaired)
+    }
+
     func unpair() {
         // Best-effort invalidate BEFORE wiping the token so the signing secret
         // is still valid (Phase 15.3 follow-up).
@@ -183,6 +199,10 @@ final class BridgeRuntime: ObservableObject {
                     BridgeRuntime.notify(title: "SnapBack", body: "Mobile reconnected")
                 default:
                     break
+                }
+                // Clear QR code once phone connects (switches UI from Cancel to Unpair).
+                if newStatus == .connected {
+                    self.pendingQRURL = nil
                 }
             }
             .store(in: &cancellables)

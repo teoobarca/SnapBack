@@ -54,6 +54,7 @@ struct MenuBarView: View {
                 status: runtime.status,
                 onPair: { BridgeRuntime.shared.pair() },
                 onUnpair: { BridgeRuntime.shared.unpair() },
+                onCancel: { BridgeRuntime.shared.cancelPairing() },
                 qrImage: runtime.pendingQRURL.flatMap { Pairing.qrImage(for: $0) }
             )
             .padding(.horizontal, 16)

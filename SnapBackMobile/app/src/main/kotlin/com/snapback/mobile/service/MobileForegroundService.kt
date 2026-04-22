@@ -42,6 +42,7 @@ class MobileForegroundService : Service() {
     private var ttlJob: Job? = null
     private val mainHandler = Handler(Looper.getMainLooper())
     private var activeSecret: ByteArray? = null
+    private var _clientConnected = false
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -91,6 +92,18 @@ class MobileForegroundService : Service() {
         val sm = this.sm!!
         val server = MessageServer(token, DEFAULT_PORT, { msg -> mainHandler.post { onMessage(msg) } },
             holdStateProvider = { sm.state == com.snapback.mobile.state.HoldState.Hold })
+        server.onClientConnected = {
+            mainHandler.post {
+                _clientConnected = true
+                updateNotification("Connected to Mac")
+            }
+        }
+        server.onClientDisconnected = {
+            mainHandler.post {
+                _clientConnected = false
+                updateNotification("Bridge idle")
+            }
+        }
         server.start()
         this.server = server
 
@@ -104,6 +117,7 @@ class MobileForegroundService : Service() {
         mdns?.stop(); mdns = null
         locks?.releaseMulticast(); locks?.releaseHighPerfWifi()
         locks = null
+        _clientConnected = false
     }
 
     private fun registerUserPresent() {
@@ -145,6 +159,15 @@ class MobileForegroundService : Service() {
             ProtocolMessageType.Resume -> {
                 logEvent(now, msg.type.wire, "")
                 applyEffect(sm.onResume(now), now)
+            }
+            ProtocolMessageType.Invalidate -> {
+                Log.i(TAG, "received invalidate; wiping token and stopping bridge")
+                logEvent(now, msg.type.wire, "")
+                applyEffect(sm.onResume(now), now)
+                KeystoreTokenStore(this).delete()
+                activeSecret = null
+                stopBridge()
+                updateNotification("Unpaired")
             }
             else -> {} // ack/pong/heartbeat/resync handled by server
         }
@@ -245,6 +268,10 @@ class MobileForegroundService : Service() {
 
         fun manualRelease(context: Context) {
             instance?.manualRelease()
+        }
+
+        fun isClientConnected(): Boolean {
+            return instance?._clientConnected ?: false
         }
     }
 }

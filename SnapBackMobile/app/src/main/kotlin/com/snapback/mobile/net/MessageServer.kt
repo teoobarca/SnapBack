@@ -24,6 +24,9 @@ class MessageServer(
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private val nonceCache = NonceCache(capacity = 1024, ttlSeconds = 600.0)
 
+    var onClientConnected: (() -> Unit)? = null
+    var onClientDisconnected: (() -> Unit)? = null
+
     fun start() {
         if (!running.compareAndSet(false, true)) return
         val s = ServerSocket(port)
@@ -34,6 +37,7 @@ class MessageServer(
                 // Close any previous client to prevent dual-handler ambiguity.
                 try { activeClient?.close() } catch (_: Exception) {}
                 activeClient = client
+                onClientConnected?.invoke()
                 scope.launch { handle(client) }
             }
         }
@@ -77,6 +81,7 @@ class MessageServer(
             // Dropped connection
         } finally {
             try { socket.close() } catch (_: Exception) {}
+            onClientDisconnected?.invoke()
         }
     }
 
