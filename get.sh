@@ -4,7 +4,7 @@
 set -euo pipefail
 
 INSTALL_DIR="$HOME/.snapback"
-BIN_DIR="/usr/local/bin"
+LOCAL_BIN="$HOME/.local/bin"
 REPO="teoobarca/snapback"
 REPO_URL="https://github.com/$REPO"
 
@@ -45,7 +45,6 @@ download_git() {
 
 # Clean existing installation
 if [[ -d "$INSTALL_DIR" ]]; then
-  # Check if it's a git repo for updates
   if [[ -d "$INSTALL_DIR/.git" ]]; then
     print_info "Updating existing installation..."
     cd "$INSTALL_DIR"
@@ -65,7 +64,6 @@ if [[ -d "$INSTALL_DIR" ]]; then
     print_success "Downloaded"
   fi
 else
-  # Fresh install - try git first (for easier updates), fallback to tarball
   if command -v git &>/dev/null; then
     if download_git; then
       print_success "Downloaded via git"
@@ -84,36 +82,23 @@ fi
 # Make scripts executable
 chmod +x "$INSTALL_DIR/snapback" "$INSTALL_DIR/snapback.sh" "$INSTALL_DIR/snapback-resume.sh" "$INSTALL_DIR/install.sh"
 
-# Add to PATH
+# Add to PATH — always use ~/.local/bin (no sudo needed)
 print_info "Adding to PATH..."
+mkdir -p "$LOCAL_BIN"
+ln -sf "$INSTALL_DIR/snapback" "$LOCAL_BIN/snapback"
+print_success "Added to $LOCAL_BIN"
 
-symlink_created=false
-
-# Try /usr/local/bin
-if [[ -d "$BIN_DIR" ]]; then
-  if [[ -w "$BIN_DIR" ]]; then
-    ln -sf "$INSTALL_DIR/snapback" "$BIN_DIR/snapback"
-    print_success "Added to $BIN_DIR"
-    symlink_created=true
-  elif sudo ln -sf "$INSTALL_DIR/snapback" "$BIN_DIR/snapback" 2>/dev/null; then
-    print_success "Added to $BIN_DIR"
-    symlink_created=true
-  fi
-fi
-
-# Fallback to ~/.local/bin
-if [[ "$symlink_created" == "false" ]]; then
-  LOCAL_BIN="$HOME/.local/bin"
-  mkdir -p "$LOCAL_BIN"
-  ln -sf "$INSTALL_DIR/snapback" "$LOCAL_BIN/snapback"
-  print_success "Added to $LOCAL_BIN"
-  symlink_created=true
-
-  if [[ ":$PATH:" != *":$LOCAL_BIN:"* ]]; then
-    echo ""
-    print_warning "$LOCAL_BIN is not in your PATH"
-    print_info "Add to ~/.zshrc:  export PATH=\"\$HOME/.local/bin:\$PATH\""
-  fi
+# Ensure ~/.local/bin is in PATH for current and future shells
+if [[ ":$PATH:" != *":$LOCAL_BIN:"* ]]; then
+  export PATH="$LOCAL_BIN:$PATH"
+  # Add to shell profile if not already there
+  for rc in "$HOME/.zshrc" "$HOME/.bashrc"; do
+    if [[ -f "$rc" ]] && ! grep -q '\.local/bin' "$rc" 2>/dev/null; then
+      echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$rc"
+      print_info "Added ~/.local/bin to PATH in $(basename "$rc")"
+      break
+    fi
+  done
 fi
 
 echo ""

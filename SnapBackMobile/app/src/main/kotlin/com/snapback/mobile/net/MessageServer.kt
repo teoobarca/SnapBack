@@ -20,6 +20,7 @@ class MessageServer(
 ) {
     private val running = AtomicBoolean(false)
     private var serverSocket: ServerSocket? = null
+    private var activeClient: Socket? = null
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private val nonceCache = NonceCache(capacity = 1024, ttlSeconds = 600.0)
 
@@ -30,6 +31,9 @@ class MessageServer(
         scope.launch {
             while (running.get()) {
                 val client = try { s.accept() } catch (e: Exception) { break }
+                // Close any previous client to prevent dual-handler ambiguity.
+                try { activeClient?.close() } catch (_: Exception) {}
+                activeClient = client
                 scope.launch { handle(client) }
             }
         }
@@ -37,6 +41,8 @@ class MessageServer(
 
     fun stop() {
         running.set(false)
+        try { activeClient?.close() } catch (_: Exception) {}
+        activeClient = null
         try { serverSocket?.close() } catch (_: Exception) {}
         serverSocket = null
         scope.cancel()

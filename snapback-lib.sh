@@ -30,6 +30,7 @@ snapback_bridge_poke() {
     bin="$(command -v snapback-poke)"
   else
     for cand in \
+      "$HOME/Applications/SnapBack.app/Contents/MacOS/snapback-poke" \
       "/Applications/SnapBack.app/Contents/MacOS/snapback-poke" \
       "${SCRIPT_DIR:-}/SnapBackApp/SnapBack.app/Contents/MacOS/snapback-poke" \
       "${SCRIPT_DIR:-}/poke/build/snapback-poke"; do

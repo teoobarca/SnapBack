@@ -59,7 +59,11 @@ class MobileForegroundService : Service() {
         if (stored != null && !stored.contentEquals(activeSecret)) {
             Log.i(TAG, "token changed (re-pair); restarting bridge")
             stopBridge()
-            startBridge()
+            // Delay to let the old ServerSocket fully release port 45782.
+            scope.launch {
+                delay(500)
+                mainHandler.post { startBridge() }
+            }
         }
         return START_STICKY
     }

@@ -1,10 +1,12 @@
 #!/bin/bash
-# SnapBack Installer
+# SnapBack Installer — zero sudo, zero prompts by default.
+# Use --interactive for guided setup.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/snapback"
 CLAUDE_SETTINGS="$HOME/.claude/settings.json"
+APP_DIR="$HOME/Applications"
 
 # Load shared config library
 if [[ -f "$SCRIPT_DIR/snapback-lib.sh" ]]; then
@@ -29,10 +31,11 @@ print_warning() { echo -e "${YELLOW}!${NC} $1"; }
 print_info() { echo -e "${BLUE}→${NC} $1"; }
 
 # Parse arguments
-AUTO_YES=false
+INTERACTIVE=false
 for arg in "$@"; do
   case "$arg" in
-    -y|--yes) AUTO_YES=true ;;
+    -i|--interactive) INTERACTIVE=true ;;
+    -y|--yes) ;;  # legacy flag, same as default (non-interactive)
   esac
 done
 
@@ -43,13 +46,12 @@ else
   TTY_INPUT="/dev/tty"
 fi
 
-# Helper for prompts with defaults
 ask() {
   local prompt="$1"
   local default="$2"
   local var_name="$3"
 
-  if [[ "$AUTO_YES" == "true" ]]; then
+  if [[ "$INTERACTIVE" != "true" ]]; then
     eval "$var_name=\"$default\""
     return
   fi
@@ -70,6 +72,21 @@ if [[ "$(uname)" != "Darwin" ]]; then
 fi
 
 # ============================================================
+# DEPENDENCIES
+# ============================================================
+
+# jq — required for hook installation
+if ! command -v jq &>/dev/null; then
+  if command -v brew &>/dev/null; then
+    print_info "Installing jq..."
+    brew install jq 2>/dev/null && print_success "Installed jq" || print_warning "Failed to install jq via brew"
+  else
+    print_warning "jq not found — install with: brew install jq"
+    print_info "Hooks will be configured when jq is available (run: snapback on)"
+  fi
+fi
+
+# ============================================================
 # CONFIGURATION
 # ============================================================
 
@@ -77,7 +94,7 @@ if [[ -f "$CONFIG_DIR/config" ]]; then
   print_success "Config found: $CONFIG_DIR/config"
   source "$CONFIG_DIR/config"
 
-  if [[ "$AUTO_YES" == "false" ]]; then
+  if [[ "$INTERACTIVE" == "true" ]]; then
     echo ""
     echo "  1) Keep current config"
     echo "  2) Reconfigure"
@@ -96,35 +113,65 @@ else
 fi
 
 if [[ "$skip_config" == "false" ]]; then
-  echo ""
-  print_info "Quick setup (press Enter for defaults)"
-  echo ""
+  if [[ "$INTERACTIVE" == "true" ]]; then
+    echo ""
+    print_info "Quick setup (press Enter for defaults)"
+    echo ""
 
-  # Only ask essential questions
-  echo -e "${BOLD}Focus apps${NC} - which apps to activate when Claude needs attention"
-  echo "Comma-separated, last one stays on top"
-  ask "[Cursor,Ghostty]: " "Cursor,Ghostty" focus_apps_input
+    echo -e "${BOLD}Focus apps${NC} - which apps to activate when Claude needs attention"
+    echo "Comma-separated, last one stays on top"
+    ask "[Cursor,Ghostty]: " "Cursor,Ghostty" focus_apps_input
+
+    echo ""
+    echo -e "${BOLD}Browser${NC} - for pausing/resuming media"
+    ask "[Google Chrome]: " "Google Chrome" browser
+  else
+    # Smart defaults — detect what's actually installed
+    focus_apps_input=""
+    for app in Cursor "Visual Studio Code" Zed; do
+      if [[ -d "/Applications/$app.app" ]] || [[ -d "$HOME/Applications/$app.app" ]]; then
+        focus_apps_input="$app"
+        break
+      fi
+    done
+    [[ -z "$focus_apps_input" ]] && focus_apps_input="Cursor"
+
+    # Detect terminal
+    local_terminal=""
+    for term in Ghostty iTerm2 "Terminal"; do
+      if [[ -d "/Applications/$term.app" ]] || [[ -d "$HOME/Applications/$term.app" ]] || [[ -d "/System/Applications/Utilities/$term.app" ]]; then
+        local_terminal="$term"
+        break
+      fi
+    done
+    [[ -n "$local_terminal" ]] && focus_apps_input="$focus_apps_input,$local_terminal"
+
+    # Detect browser
+    browser=""
+    for b in "Google Chrome" Arc Brave "Microsoft Edge"; do
+      if [[ -d "/Applications/$b.app" ]]; then
+        browser="$b"
+        break
+      fi
+    done
+    [[ -z "$browser" ]] && browser="Google Chrome"
+
+    print_info "Auto-detected: focus=$focus_apps_input, browser=$browser"
+  fi
+
   IFS=',' read -ra FOCUS_APPS_ARR <<< "$focus_apps_input"
 
-  echo ""
-  echo -e "${BOLD}Browser${NC} - for pausing/resuming media"
-  ask "[Google Chrome]: " "Google Chrome" browser
-
-  # Use smart defaults for the rest
   focus_delay="0.5"
   seek_back="1"
   throttle="2"
   notification_sound="default"
 
-  # Create config using config_set
   mkdir -p "$CONFIG_DIR"
   : > "$CONFIG_DIR/config"
 
-  # Build FOCUS_APPS bash-array literal
   focus_apps_literal='('
   for app in "${FOCUS_APPS_ARR[@]}"; do
-    app="$(echo "$app" | xargs)"  # trim whitespace
-    # Escape the same way config_set does (backslash, dollar, backtick, dquote)
+    app="$(echo "$app" | xargs)"
     esc="${app//\\/\\\\}"
     esc="${esc//\$/\\\$}"
     esc="${esc//\`/\\\`}"
@@ -144,7 +191,6 @@ if [[ "$skip_config" == "false" ]]; then
 
   echo ""
   print_success "Config saved to $CONFIG_DIR/config"
-  print_info "Edit this file for advanced settings (delays, sounds, etc.)"
 fi
 
 # Migrate: ensure all known keys exist with sensible defaults.
@@ -176,8 +222,8 @@ setup_hooks() {
   mkdir -p "$(dirname "$CLAUDE_SETTINGS")"
 
   if ! command -v jq &>/dev/null; then
-    print_warning "jq not found - please install with: brew install jq"
-    print_info "Then run: snapback on"
+    print_warning "jq not found — hooks not configured"
+    print_info "Install jq, then run: snapback on"
     return 1
   fi
 
@@ -198,7 +244,7 @@ setup_hooks() {
 if setup_hooks; then
   print_success "Claude Code hooks configured"
 else
-  print_warning "Hooks not configured - run 'snapback on' after installing jq"
+  print_warning "Hooks not configured — run 'snapback on' after installing jq"
 fi
 
 # ============================================================
@@ -208,46 +254,53 @@ fi
 echo ""
 print_info "Testing macOS permissions..."
 
-# Quiet probe: just try System Events access. No app focus, no sound, no state.
 if osascript -e 'tell application "System Events" to get name of first application process whose frontmost is true' &>/dev/null; then
   print_success "Permissions OK"
 else
-  print_warning "Grant permission: System Settings → Privacy & Security → Automation → Terminal/iTerm → System Events"
+  print_warning "Grant permission: System Settings > Privacy & Security > Automation > Terminal > System Events"
 fi
 
 # ============================================================
-# MENU-BAR APP (optional)
+# POKE HELPER
+# ============================================================
+
+if [[ -d "$SCRIPT_DIR/poke" ]]; then
+  if command -v make >/dev/null 2>&1 && command -v clang >/dev/null 2>&1; then
+    ( cd "$SCRIPT_DIR/poke" && make -s ) || {
+      echo "warning: snapback-poke failed to build; bridge feature will use fallback" >&2
+    }
+    # Install to ~/.local/bin (no sudo)
+    if [[ -x "$SCRIPT_DIR/poke/build/snapback-poke" ]]; then
+      mkdir -p "$HOME/.local/bin"
+      ln -sf "$SCRIPT_DIR/poke/build/snapback-poke" "$HOME/.local/bin/snapback-poke"
+    fi
+  fi
+fi
+
+# ============================================================
+# MENU-BAR APP (automatic if Swift is available)
 # ============================================================
 echo ""
 if command -v swift &>/dev/null && [[ -d "$SCRIPT_DIR/SnapBackApp" ]]; then
-  install_app=""
-  if [[ "$AUTO_YES" == "true" ]]; then
-    install_app="n"  # default no for non-interactive
-  else
+  if [[ "$INTERACTIVE" == "true" ]]; then
     ask "Build & install SnapBack menu-bar app? [Y/n]: " "Y" install_app
+  else
+    install_app="Y"
   fi
 
   case "$install_app" in
     [Yy]*)
-      print_info "Building menu-bar app..."
+      print_info "Building menu-bar app (this may take a minute)..."
       (
         cd "$SCRIPT_DIR/SnapBackApp"
-        # Point the bundle at the CLI we just symlinked (prefer /usr/local/bin)
-        export SNAPBACK_CLI_PATH=""
-        for p in /usr/local/bin/snapback /opt/homebrew/bin/snapback "$HOME/.local/bin/snapback"; do
-          if [[ -x "$p" ]]; then SNAPBACK_CLI_PATH="$p"; break; fi
-        done
+        export SNAPBACK_CLI_PATH="$HOME/.local/bin/snapback"
         ./build-app.sh
       )
-      print_info "Installing to /Applications/SnapBack.app ..."
-      if [[ -w /Applications ]]; then
-        rm -rf /Applications/SnapBack.app
-        cp -R "$SCRIPT_DIR/SnapBackApp/SnapBack.app" /Applications/
-      else
-        sudo rm -rf /Applications/SnapBack.app
-        sudo cp -R "$SCRIPT_DIR/SnapBackApp/SnapBack.app" /Applications/
-      fi
-      print_success "Installed. Run with: snapback app (or from /Applications)"
+      # Install to ~/Applications (no sudo)
+      mkdir -p "$APP_DIR"
+      rm -rf "$APP_DIR/SnapBack.app"
+      cp -R "$SCRIPT_DIR/SnapBackApp/SnapBack.app" "$APP_DIR/"
+      print_success "Installed to ~/Applications/SnapBack.app"
       ;;
     *)
       print_info "Skipped. Re-run 'snapback update' any time to install."
@@ -255,32 +308,8 @@ if command -v swift &>/dev/null && [[ -d "$SCRIPT_DIR/SnapBackApp" ]]; then
   esac
 else
   if ! command -v swift &>/dev/null; then
-    print_info "Menu-bar app skipped (Swift not available)."
+    print_info "Menu-bar app skipped (Swift not available)"
     print_info "Install Xcode Command Line Tools: xcode-select --install"
-  fi
-fi
-
-# ============================================================
-# POKE HELPER
-# ============================================================
-
-# Build and install the poke helper.
-if [[ -d "$SCRIPT_DIR/poke" ]]; then
-  if command -v make >/dev/null 2>&1 && command -v clang >/dev/null 2>&1; then
-    ( cd "$SCRIPT_DIR/poke" && make -s ) || {
-      echo "warning: snapback-poke failed to build; bridge feature will be inert" >&2
-    }
-    if [[ -x "$SCRIPT_DIR/poke/build/snapback-poke" ]]; then
-      if [[ -w /usr/local/bin ]]; then
-        ln -sf "$SCRIPT_DIR/poke/build/snapback-poke" /usr/local/bin/snapback-poke \
-          || echo "warning: failed to symlink snapback-poke to /usr/local/bin; bridge feature will be inert" >&2
-      else
-        sudo ln -sf "$SCRIPT_DIR/poke/build/snapback-poke" /usr/local/bin/snapback-poke \
-          || echo "warning: failed to symlink snapback-poke to /usr/local/bin; bridge feature will be inert" >&2
-      fi
-    fi
-  else
-    echo "warning: clang+make not available; snapback-poke not built" >&2
   fi
 fi
 

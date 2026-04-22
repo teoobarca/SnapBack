@@ -49,7 +49,8 @@ SnapBack v${VERSION} - Attention manager for Claude Code
 Usage: snapback <command>
 
 Commands:
-  install [-y]  Interactive installation and configuration
+  install       Auto-detect and configure (no prompts, no sudo)
+  install -i    Interactive installation with prompts
   status        Check configuration and menu-bar state
   on            Enable Claude Code hooks
   off           Disable Claude Code hooks (keeps config)
@@ -66,11 +67,11 @@ Commands:
   help          Show this help message
 
 Options:
-  -y, --yes     Accept defaults without prompts (for install)
+  -i, --interactive   Guided setup with prompts (for install)
 
 Examples:
-  snapback install      # First-time setup
-  snapback install -y   # Install with defaults
+  snapback install      # Auto-setup (no prompts, no sudo)
+  snapback install -i   # Interactive guided setup
   snapback status       # Check configuration
   snapback off          # Temporarily disable
   snapback mode sound   # Sound only, no app switching
@@ -155,8 +156,12 @@ cmd_status() {
   echo ""
   echo "Menu-bar app"
   echo "────────────"
-  if [[ -d "/Applications/SnapBack.app" ]]; then
-    print_success "Installed at /Applications/SnapBack.app"
+  local app_path=""
+  for p in "$HOME/Applications/SnapBack.app" "/Applications/SnapBack.app"; do
+    if [[ -d "$p" ]]; then app_path="$p"; break; fi
+  done
+  if [[ -n "$app_path" ]]; then
+    print_success "Installed at $app_path"
     if pgrep -x SnapBack >/dev/null 2>&1; then
       print_info "  Running"
     else
@@ -350,20 +355,20 @@ cmd_uninstall() {
   rm -f "${TMPDIR:-/tmp}/snapback_resume_last" 2>/dev/null || true
   print_success "Removed temporary files"
 
-  # Remove symlink from PATH
-  if [[ -L "/usr/local/bin/snapback" ]]; then
-    if [[ -w "/usr/local/bin" ]]; then
-      rm -f "/usr/local/bin/snapback"
-      print_success "Removed /usr/local/bin/snapback"
-    else
-      print_info "Removing /usr/local/bin/snapback (requires sudo)..."
-      sudo rm -f "/usr/local/bin/snapback" 2>/dev/null && print_success "Removed /usr/local/bin/snapback" || print_warning "Could not remove /usr/local/bin/snapback"
+  # Remove symlinks from PATH
+  for link in "$HOME/.local/bin/snapback" "$HOME/.local/bin/snapback-poke"; do
+    if [[ -L "$link" ]]; then
+      rm -f "$link"
+      print_success "Removed $link"
     fi
-  fi
+  done
 
-  if [[ -L "$HOME/.local/bin/snapback" ]]; then
-    rm -f "$HOME/.local/bin/snapback"
-    print_success "Removed ~/.local/bin/snapback"
+  # Legacy: clean up /usr/local/bin symlinks if present
+  if [[ -L "/usr/local/bin/snapback" ]] && [[ -w "/usr/local/bin" ]]; then
+    rm -f "/usr/local/bin/snapback"
+    print_success "Removed /usr/local/bin/snapback"
+  elif [[ -L "/usr/local/bin/snapback" ]]; then
+    print_warning "Legacy symlink at /usr/local/bin/snapback — remove manually with: sudo rm /usr/local/bin/snapback"
   fi
 
   # Remove installation directory (if installed globally via get.sh)
@@ -372,18 +377,13 @@ cmd_uninstall() {
     print_success "Removed installation: ~/.snapback"
   fi
 
-  # Remove menu-bar app if installed
-  if [[ -d "/Applications/SnapBack.app" ]]; then
-    read -p "Remove /Applications/SnapBack.app? [y/N]: " rm_app
-    if [[ "$rm_app" =~ ^[Yy]$ ]]; then
-      if [[ -w /Applications/SnapBack.app ]]; then
-        rm -rf /Applications/SnapBack.app
-      else
-        sudo rm -rf /Applications/SnapBack.app
-      fi
-      print_success "Removed /Applications/SnapBack.app"
+  # Remove menu-bar app
+  for app_dir in "$HOME/Applications/SnapBack.app" "/Applications/SnapBack.app"; do
+    if [[ -d "$app_dir" ]]; then
+      rm -rf "$app_dir"
+      print_success "Removed $app_dir"
     fi
-  fi
+  done
 
   echo ""
   print_success "SnapBack uninstalled"
@@ -447,47 +447,29 @@ cmd_update() {
     fi
   fi
 
-  # Menu-bar app maintenance
-  local app_installed="/Applications/SnapBack.app"
+  # Menu-bar app maintenance — install to ~/Applications (no sudo)
+  local app_dir="$HOME/Applications"
+  local app_installed=""
+  for p in "$app_dir/SnapBack.app" "/Applications/SnapBack.app"; do
+    if [[ -d "$p" ]]; then app_installed="$p"; break; fi
+  done
+
   if [[ -d "$install_dir/SnapBackApp" ]] && command -v swift &>/dev/null; then
-    if [[ -d "$app_installed" ]]; then
-      print_info "Rebuilding menu-bar app..."
-      (
-        cd "$install_dir/SnapBackApp"
-        for p in /usr/local/bin/snapback /opt/homebrew/bin/snapback "$HOME/.local/bin/snapback"; do
-          [[ -x "$p" ]] && export SNAPBACK_CLI_PATH="$p" && break
-        done
-        ./build-app.sh
-      )
-      if [[ -w /Applications ]]; then
-        rm -rf "$app_installed"
-        cp -R "$install_dir/SnapBackApp/SnapBack.app" "$app_installed"
-      else
-        sudo rm -rf "$app_installed"
-        sudo cp -R "$install_dir/SnapBackApp/SnapBack.app" "$app_installed"
-      fi
-      print_success "Menu-bar app rebuilt"
-    else
-      # Offer to install now, respecting non-TTY
-      if [[ -t 0 ]]; then
-        read -p "Menu-bar app not installed. Install now? [y/N]: " yn
-        if [[ "$yn" =~ ^[Yy]$ ]]; then
-          (
-            cd "$install_dir/SnapBackApp"
-            for p in /usr/local/bin/snapback /opt/homebrew/bin/snapback "$HOME/.local/bin/snapback"; do
-              [[ -x "$p" ]] && export SNAPBACK_CLI_PATH="$p" && break
-            done
-            ./build-app.sh
-          )
-          if [[ -w /Applications ]]; then
-            cp -R "$install_dir/SnapBackApp/SnapBack.app" "$app_installed"
-          else
-            sudo cp -R "$install_dir/SnapBackApp/SnapBack.app" "$app_installed"
-          fi
-          print_success "Menu-bar app installed"
-        fi
-      fi
+    print_info "Rebuilding menu-bar app..."
+    (
+      cd "$install_dir/SnapBackApp"
+      export SNAPBACK_CLI_PATH="$HOME/.local/bin/snapback"
+      ./build-app.sh
+    )
+    # Always install to ~/Applications (no sudo needed)
+    mkdir -p "$app_dir"
+    rm -rf "$app_dir/SnapBack.app"
+    cp -R "$install_dir/SnapBackApp/SnapBack.app" "$app_dir/"
+    # Clean up legacy /Applications copy if we now have ~/Applications
+    if [[ -d "/Applications/SnapBack.app" ]] && [[ -w "/Applications/SnapBack.app" ]]; then
+      rm -rf "/Applications/SnapBack.app"
     fi
+    print_success "Menu-bar app rebuilt at ~/Applications/SnapBack.app"
   elif [[ -d "$install_dir/SnapBackApp" ]]; then
     print_info "Menu-bar app present but Swift not available — install Xcode Command Line Tools to build."
   fi
@@ -503,18 +485,18 @@ cmd_update() {
 # ============================================================
 cmd_app() {
   local app_bundle="$SCRIPT_DIR/SnapBackApp/SnapBack.app"
-  local installed_app="/Applications/SnapBack.app"
 
-  # Check if app exists
-  if [[ -d "$installed_app" ]]; then
-    open "$installed_app"
-  elif [[ -d "$app_bundle" ]]; then
-    open "$app_bundle"
-  else
-    print_error "SnapBack menu bar app not found"
-    print_info "Build it first: cd $SCRIPT_DIR/SnapBackApp && ./build-app.sh"
-    exit 1
-  fi
+  # Check if app exists — prefer ~/Applications, then /Applications, then dev build
+  for p in "$HOME/Applications/SnapBack.app" "/Applications/SnapBack.app" "$app_bundle"; do
+    if [[ -d "$p" ]]; then
+      open "$p"
+      return
+    fi
+  done
+
+  print_error "SnapBack menu bar app not found"
+  print_info "Build it first: cd $SCRIPT_DIR/SnapBackApp && ./build-app.sh"
+  exit 1
 }
 
 # ============================================================

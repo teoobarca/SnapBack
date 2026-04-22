@@ -10,13 +10,21 @@ import Network
 /// current path, causing a redundant browser restart at init — harmless but
 /// expected.
 public final class MDNSBrowser {
+    /// Fires when a peer is discovered or its resolved address changes.
     public var onDiscover: ((String, UInt16) -> Void)?
+    /// Fires when all previously-discovered services disappear.
+    public var onDisappear: (() -> Void)?
 
     private var browser: NWBrowser?
     private var pathMonitor: NWPathMonitor?
     private let queue = DispatchQueue(label: "com.snapback.bridge.mdns")
     private var stopped = true
     private var pendingResolutions: [NWConnection] = []
+    /// Last resolved endpoint so we can detect address changes.
+    private var lastResolvedHost: String?
+    private var lastResolvedPort: UInt16?
+    /// Number of services in the most recent browse result.
+    private var lastResultCount = 0
 
     public init() {}
 
@@ -43,6 +51,9 @@ public final class MDNSBrowser {
         pathMonitor = nil
         for conn in pendingResolutions { conn.cancel() }
         pendingResolutions.removeAll()
+        lastResolvedHost = nil
+        lastResolvedPort = nil
+        lastResultCount = 0
     }
 
     private func startBrowser() {
@@ -50,8 +61,17 @@ public final class MDNSBrowser {
         let descriptor = NWBrowser.Descriptor.bonjour(type: "_snapback._tcp", domain: "local.")
         let b = NWBrowser(for: descriptor, using: .tcp)
         b.browseResultsChangedHandler = { [weak self] results, _ in
-            for r in results {
-                self?.resolve(endpoint: r.endpoint)
+            guard let self else { return }
+            if results.isEmpty && self.lastResultCount > 0 {
+                self.lastResolvedHost = nil
+                self.lastResolvedPort = nil
+                self.lastResultCount = 0
+                self.onDisappear?()
+            } else {
+                self.lastResultCount = results.count
+                for r in results {
+                    self.resolve(endpoint: r.endpoint)
+                }
             }
         }
         b.start(queue: queue)
@@ -72,7 +92,13 @@ public final class MDNSBrowser {
                     case .ipv6(let ipv6):  hostString = "\(ipv6)"
                     @unknown default:       hostString = "unknown"
                     }
-                    self?.onDiscover?(hostString, port.rawValue)
+                    guard let self else { return }
+                    // Fire onDiscover on first resolution or when address changes.
+                    if self.lastResolvedHost != hostString || self.lastResolvedPort != port.rawValue {
+                        self.lastResolvedHost = hostString
+                        self.lastResolvedPort = port.rawValue
+                        self.onDiscover?(hostString, port.rawValue)
+                    }
                 }
                 conn.cancel()
             case .failed, .cancelled:

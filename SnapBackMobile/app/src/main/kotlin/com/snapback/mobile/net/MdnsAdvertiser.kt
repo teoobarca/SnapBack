@@ -46,6 +46,7 @@ class MdnsAdvertiser(private val context: Context) {
     fun stop() {
         val nsd = this.nsd ?: return
         val l = this.listener ?: return
+        registered = false
         try { nsd.unregisterService(l) } catch (e: Exception) {}
         listener = null
     }

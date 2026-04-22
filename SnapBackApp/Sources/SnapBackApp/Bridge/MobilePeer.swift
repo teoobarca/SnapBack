@@ -7,8 +7,8 @@ public final class MobilePeer {
     public var onStateChange: ((State) -> Void)?
     public var onMessage: ((ProtocolMessage) -> Void)?
 
-    private let host: String
-    private let port: UInt16
+    public let host: String
+    public let port: UInt16
     private let secret: Data
     private let peerName: String
     private var connection: NWConnection?
@@ -17,6 +17,7 @@ public final class MobilePeer {
     private var reconnectAttempt = 0
     private var buffer = Data()
     private var stopRequested = false
+    private var helloTimeout: DispatchWorkItem?
     // Replay protection on the receive path. Sized for a long session at
     // ~30 s heartbeat cadence; 1024 is vastly more than any real phone ever
     // produces in the 10 min TTL window.
@@ -36,6 +37,8 @@ public final class MobilePeer {
     public func stop() {
         queue.async {
             self.stopRequested = true
+            self.helloTimeout?.cancel()
+            self.helloTimeout = nil
             self.state = .disconnected
             self.connection?.cancel()
             self.connection = nil
@@ -74,6 +77,7 @@ public final class MobilePeer {
                 self.reconnectAttempt = 0
                 self.sendHello()
                 self.receiveLoop()
+                self.armHelloTimeout()
             case .failed:
                 self.state = .disconnected
                 self.scheduleReconnect()
@@ -106,6 +110,16 @@ public final class MobilePeer {
             guard self.state == .disconnected else { return }
             self.connect()
         }
+    }
+
+    private func armHelloTimeout() {
+        helloTimeout?.cancel()
+        let item = DispatchWorkItem { [weak self] in
+            guard let self, self.state == .connecting else { return }
+            self.connection?.cancel()
+        }
+        helloTimeout = item
+        queue.asyncAfter(deadline: .now() + 5.0, execute: item)
     }
 
     private func sendHello() {
@@ -152,7 +166,11 @@ public final class MobilePeer {
         // Clock drift beyond the codec's ±30 s window was already rejected above.
         let now = Date().timeIntervalSince1970
         guard nonceCache.tryAdd(msg.nonceHex, at: now) else { return }
-        if state != .connected { state = .connected }
+        if state != .connected {
+            state = .connected
+            helloTimeout?.cancel()
+            helloTimeout = nil
+        }
         onMessage?(msg)
     }
 }

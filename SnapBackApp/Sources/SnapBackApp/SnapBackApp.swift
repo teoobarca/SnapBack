@@ -133,7 +133,17 @@ final class BridgeRuntime: ObservableObject {
         let browser = MDNSBrowser()
         browser.onDiscover = { [weak self] host, port in
             guard let self else { return }
-            guard self.peer == nil else { return }  // first wins
+            if let existingPeer = self.peer {
+                // Endpoint changed (e.g. WiFi roam) — tear down stale peer.
+                if existingPeer.host != host || existingPeer.port != port {
+                    self.log.info("peer endpoint changed to \(host):\(port); reconnecting")
+                    self.orchestrator?.stop()
+                    self.orchestrator = nil
+                    self.peer = nil
+                } else {
+                    return  // same endpoint, nothing to do
+                }
+            }
             let deskName = ProcessInfo.processInfo.hostName
             let peer = MobilePeer(host: host, port: port, secret: token, peerName: deskName)
             let orch = BridgeOrchestrator(
@@ -145,6 +155,13 @@ final class BridgeRuntime: ObservableObject {
             self.peer = peer
             self.orchestrator = orch
             self.log.info("bridge connected peer at \(host):\(port)")
+        }
+        browser.onDisappear = { [weak self] in
+            guard let self else { return }
+            self.log.info("peer disappeared from mDNS; tearing down")
+            self.orchestrator?.stop()
+            self.orchestrator = nil
+            self.peer = nil
         }
         browser.start()
         self.browser = browser
