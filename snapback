@@ -2,7 +2,7 @@
 # SnapBack CLI - Attention manager for Claude Code
 set -euo pipefail
 
-VERSION="1.3.0"
+VERSION="1.4.0"
 # Resolve symlinks to get the actual script directory
 SOURCE="$0"
 while [[ -L "$SOURCE" ]]; do
@@ -27,7 +27,37 @@ fi
 
 # Align lib's config path with the CLI's.
 SNAPBACK_CONFIG_FILE="$CONFIG_FILE"
-CLAUDE_SETTINGS="$HOME/.claude/settings.json"
+
+# ============================================================
+# TOOL FOLDERS
+# ============================================================
+# Each supported AI CLI lives in its own subdirectory next to this script
+# (claude/, codex/, …). Every tool folder exports the same contract:
+#   detect.sh   – exit 0 if the tool is installed on this machine
+#   enable.sh   – register SnapBack with that tool (idempotent)
+#   disable.sh  – unregister (idempotent)
+#   status.sh   – print one status line; exit 0 if enabled, 1 if not
+# Adding a new tool = drop in a new folder. The CLI does not hard-code names.
+
+# Echo names of tool folders that look complete (have detect.sh + enable.sh).
+_snapback_tool_dirs() {
+  local d
+  for d in "$SCRIPT_DIR"/*/; do
+    [[ -x "$d/detect.sh" && -x "$d/enable.sh" ]] || continue
+    basename "$d"
+  done
+  # Always succeed: empty output is the "no tools" signal.
+  return 0
+}
+
+# Echo names of tools whose detect.sh exits 0 (installed on this machine).
+_snapback_detected_tools() {
+  local t
+  for t in $(_snapback_tool_dirs); do
+    "$SCRIPT_DIR/$t/detect.sh" >/dev/null 2>&1 && echo "$t"
+  done
+  return 0
+}
 
 # Colors
 RED='\033[0;31m'
@@ -44,7 +74,10 @@ print_info() { echo -e "${BLUE}→${NC} $1"; }
 
 show_help() {
   cat <<EOF
-SnapBack v${VERSION} - Attention manager for Claude Code
+SnapBack v${VERSION} - Attention manager for AI coding CLIs
+
+Supported tools: Claude Code, Codex CLI (each in its own subdirectory; add
+more by dropping a new folder with detect/enable/disable/status.sh).
 
 Usage: snapback <command>
 
@@ -52,8 +85,8 @@ Commands:
   install       Auto-detect and configure (no prompts, no sudo)
   install -i    Interactive installation with prompts
   status        Check configuration and menu-bar state
-  on            Enable Claude Code hooks
-  off           Disable Claude Code hooks (keeps config)
+  on            Enable hooks for all detected AI CLIs
+  off           Disable hooks for all configured AI CLIs (keeps config)
   mode [MODE]   Get/set mode: full | sound | switch
   volume [VAL]  Get/set notification volume (0.0 - 1.0)
   browser [NAME]  Get/set browser (Google Chrome, Arc, Safari, Firefox, Brave)
@@ -126,17 +159,23 @@ cmd_status() {
     all_ok=false
   fi
 
-  # Check Claude settings
-  if [[ -f "$CLAUDE_SETTINGS" ]]; then
-    if grep -q "snapback.sh" "$CLAUDE_SETTINGS" 2>/dev/null; then
-      print_success "Claude Code hooks are configured"
-    else
-      print_warning "Claude settings exist but hooks not found"
+  # Check tool integrations (one row per detected AI CLI)
+  local detected
+  detected="$(_snapback_detected_tools)"
+  if [[ -z "$detected" ]]; then
+    print_error "No supported AI CLI detected (Claude Code, Codex, …)"
+    all_ok=false
+  else
+    local t any_enabled=false
+    for t in $detected; do
+      if "$SCRIPT_DIR/$t/status.sh"; then
+        any_enabled=true
+      fi
+    done
+    if [[ "$any_enabled" != true ]]; then
+      print_warning "No tool integrations are enabled. Run: snapback on"
       all_ok=false
     fi
-  else
-    print_error "Claude settings not found: $CLAUDE_SETTINGS"
-    all_ok=false
   fi
 
   # Check macOS permissions
@@ -194,74 +233,55 @@ cmd_status() {
 # ============================================================
 # ON/OFF COMMANDS
 # ============================================================
+# Iterate every detected tool folder and run its enable.sh / disable.sh.
+# Each tool script is responsible for its own conflict checks and prints
+# its own one-line status. We just exit non-zero if any tool fails.
 cmd_on() {
-  if [[ ! -f "$CLAUDE_SETTINGS" ]]; then
-    print_error "Claude settings not found. Run 'snapback install' first."
+  local detected rc=0 t any=false
+  detected="$(_snapback_detected_tools)"
+  if [[ -z "$detected" ]]; then
+    print_error "No supported AI CLI detected (Claude Code, Codex, …)"
+    print_info "Install one of them, then re-run."
     exit 1
   fi
-
-  if ! command -v jq &>/dev/null; then
-    print_error "jq is required. Install with: brew install jq"
+  for t in $detected; do
+    any=true
+    if "$SCRIPT_DIR/$t/enable.sh"; then
+      :
+    else
+      rc=1
+    fi
+  done
+  [[ "$any" == true ]] || { print_warning "No tool folders found"; exit 1; }
+  if [[ "$rc" -eq 0 ]]; then
+    print_success "Hooks enabled"
+    print_info "Restart your AI CLI to apply changes"
+  else
+    print_warning "Some tools failed to enable (see messages above)"
     exit 1
   fi
-
-  # Check if hooks already exist
-  if grep -q "snapback.sh" "$CLAUDE_SETTINGS" 2>/dev/null; then
-    print_warning "Hooks are already enabled"
-    exit 0
-  fi
-
-  # Add hooks (preserve existing hooks from other tools)
-  local tmp=$(mktemp)
-  jq --arg snapback "$SCRIPT_DIR/snapback.sh" --arg resume "$SCRIPT_DIR/snapback-resume.sh" '
-    # Add to PermissionRequest (preserve others)
-    .hooks.PermissionRequest = ((.hooks.PermissionRequest // []) | map(select(.hooks[0].command | contains("snapback") | not))) + [{"matcher": "*", "hooks": [{"type": "command", "command": $snapback}]}] |
-    # Add to Stop (preserve others)
-    .hooks.Stop = ((.hooks.Stop // []) | map(select(.hooks[0].command | contains("snapback") | not))) + [{"hooks": [{"type": "command", "command": $snapback}]}] |
-    # Add to PostToolUse (preserve others)
-    .hooks.PostToolUse = ((.hooks.PostToolUse // []) | map(select(.hooks[0].command | contains("snapback") | not))) + [{"matcher": "Edit|Write|Bash", "hooks": [{"type": "command", "command": $resume}]}] |
-    # Add to UserPromptSubmit (preserve others)
-    .hooks.UserPromptSubmit = ((.hooks.UserPromptSubmit // []) | map(select(.hooks[0].command | contains("snapback") | not))) + [{"hooks": [{"type": "command", "command": $resume}]}]
-  ' "$CLAUDE_SETTINGS" > "$tmp" && mv "$tmp" "$CLAUDE_SETTINGS"
-
-  print_success "Hooks enabled"
-  print_info "Restart Claude Code to apply changes"
 }
 
 cmd_off() {
-  if [[ ! -f "$CLAUDE_SETTINGS" ]]; then
-    print_warning "Claude settings not found. Nothing to disable."
-    exit 0
-  fi
-
-  if ! command -v jq &>/dev/null; then
-    print_error "jq is required. Install with: brew install jq"
+  local detected rc=0 t any=false
+  # `off` should also clean up tools that aren't currently detected, in case
+  # the binary was uninstalled but the config files still exist.
+  detected="$(_snapback_tool_dirs)"
+  for t in $detected; do
+    any=true
+    if "$SCRIPT_DIR/$t/disable.sh"; then
+      :
+    else
+      rc=1
+    fi
+  done
+  [[ "$any" == true ]] || { print_warning "No tool folders found"; exit 0; }
+  if [[ "$rc" -eq 0 ]]; then
+    print_success "Hooks disabled"
+    print_info "Restart your AI CLI to apply changes"
+  else
     exit 1
   fi
-
-  # Check if hooks exist
-  if ! grep -q "snapback.sh" "$CLAUDE_SETTINGS" 2>/dev/null; then
-    print_warning "Hooks are already disabled"
-    exit 0
-  fi
-
-  # Remove snapback hooks
-  local tmp=$(mktemp)
-  jq '
-    .hooks.PermissionRequest = ((.hooks.PermissionRequest // []) | map(select(.hooks[0].command | contains("snapback") | not))) |
-    .hooks.Stop = ((.hooks.Stop // []) | map(select(.hooks[0].command | contains("snapback") | not))) |
-    .hooks.PostToolUse = ((.hooks.PostToolUse // []) | map(select(.hooks[0].command | contains("snapback") | not))) |
-    .hooks.UserPromptSubmit = ((.hooks.UserPromptSubmit // []) | map(select(.hooks[0].command | contains("snapback") | not))) |
-    # Clean up empty arrays
-    if .hooks.PermissionRequest == [] then del(.hooks.PermissionRequest) else . end |
-    if .hooks.Stop == [] then del(.hooks.Stop) else . end |
-    if .hooks.PostToolUse == [] then del(.hooks.PostToolUse) else . end |
-    if .hooks.UserPromptSubmit == [] then del(.hooks.UserPromptSubmit) else . end |
-    if .hooks == {} then del(.hooks) else . end
-  ' "$CLAUDE_SETTINGS" > "$tmp" && mv "$tmp" "$CLAUDE_SETTINGS"
-
-  print_success "Hooks disabled"
-  print_info "Restart Claude Code to apply changes"
 }
 
 # ============================================================
@@ -322,18 +342,17 @@ cmd_uninstall() {
   echo "──────────────────"
   echo ""
 
-  read -p "This will remove config and Claude hooks. Continue? [y/N]: " confirm
+  read -p "This will remove config and AI CLI hooks. Continue? [y/N]: " confirm
   if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
     echo "Cancelled."
     exit 0
   fi
 
-  # Remove hooks first
-  if [[ -f "$CLAUDE_SETTINGS" ]] && command -v jq &>/dev/null; then
-    if grep -q "snapback" "$CLAUDE_SETTINGS" 2>/dev/null; then
-      cmd_off
-    fi
-  fi
+  # Remove hooks/notify for every supported tool (failures are non-fatal).
+  local t
+  for t in $(_snapback_tool_dirs); do
+    "$SCRIPT_DIR/$t/disable.sh" || true
+  done
 
   # Remove config
   if [[ -d "$CONFIG_DIR" ]]; then
@@ -433,6 +452,15 @@ cmd_update() {
       cp "$tmp_dir/snapback-lib.sh" "$install_dir/"
       cp "$tmp_dir/install.sh" "$install_dir/"
       cp "$tmp_dir/notification.mp3" "$install_dir/" 2>/dev/null || true
+      # Per-tool integration folders (claude/, codex/, …)
+      for d in "$tmp_dir"/*/; do
+        name="$(basename "$d")"
+        # Only copy folders that look like tool integrations.
+        [[ -f "$d/detect.sh" && -f "$d/enable.sh" ]] || continue
+        rm -rf "$install_dir/$name"
+        cp -R "$d" "$install_dir/"
+        chmod +x "$install_dir/$name"/*.sh 2>/dev/null || true
+      done
       rm -rf "$install_dir/SnapBackApp"
       cp -R "$tmp_dir/SnapBackApp" "$install_dir/"
       chmod +x "$install_dir/snapback" "$install_dir/snapback.sh" \

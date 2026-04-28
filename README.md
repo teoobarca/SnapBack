@@ -3,8 +3,8 @@
 </p>
 
 <p align="center">
-  <strong>Attention manager for Claude Code</strong><br>
-  Pauses your media, focuses your IDE, locks your phone, snaps you back when done.
+  <strong>Attention manager for AI coding CLIs</strong><br>
+  Works with <strong>Claude Code</strong> and <strong>Codex CLI</strong>. Pauses your media, focuses your IDE, locks your phone, snaps you back when done.
 </p>
 
 <p align="center">
@@ -31,7 +31,7 @@ You're watching YouTube while Claude Code works. Claude finishes and asks a ques
 
 ## The Solution
 
-**SnapBack** hooks into Claude Code and:
+**SnapBack** plugs into your AI coding CLI and:
 
 1. **Pauses** your browser media (YouTube, etc.)
 2. **Plays** a notification sound
@@ -48,8 +48,10 @@ No more missed prompts. No more context switching friction.
 ### Prerequisites
 
 - **macOS 12+**
-- **Claude Code** with [hooks support](https://docs.anthropic.com/en/docs/claude-code/hooks)
-- **`jq`** — `brew install jq` (for automatic hook installation)
+- One or more supported AI CLIs:
+  - **[Claude Code](https://docs.anthropic.com/en/docs/claude-code/hooks)** (uses hooks)
+  - **[Codex CLI](https://github.com/openai/codex)** (uses the `notify` setting)
+- **`jq`** — `brew install jq` (only needed for Claude Code hook installation)
 - **Chromium browser** — Chrome, Arc, Brave, or Edge
 
 ### Install (one command)
@@ -108,7 +110,9 @@ snapback test     # play a notification sound preview
    Claude asks            You respond            Back to video
 ```
 
-SnapBack registers four [Claude Code hooks](https://docs.anthropic.com/en/docs/claude-code/hooks):
+### Claude Code
+
+SnapBack registers four [Claude Code hooks](https://docs.anthropic.com/en/docs/claude-code/hooks) in `~/.claude/settings.json`:
 
 | Hook | Fires when | SnapBack action |
 |------|-----------|-----------------|
@@ -116,6 +120,23 @@ SnapBack registers four [Claude Code hooks](https://docs.anthropic.com/en/docs/c
 | `Stop` | Claude finishes a turn | Pause media, focus IDE, lock phone |
 | `PostToolUse` | A tool completes successfully | Resume media, return to previous app |
 | `UserPromptSubmit` | You send a message | Resume media, unlock phone |
+
+### Codex CLI
+
+Codex doesn't have a hook system; it has a single `notify` setting in `~/.codex/config.toml`. SnapBack points it at an adapter (`codex/notify.sh`) that:
+
+| Codex event | SnapBack action |
+|-------------|-----------------|
+| `agent-turn-complete` | Pause media, focus IDE, lock phone |
+| `approval-requested` | Pause media, focus IDE, lock phone |
+
+Codex has **no event for "user submitted a new prompt"**, so to drive the resume side SnapBack tails the active session log (`~/.codex/sessions/.../rollout-*.jsonl`) in a tiny background watcher and fires the resume script the moment a new `user_message` line lands. The watcher self-terminates after 30 minutes if Codex closes silently.
+
+If you already have a `notify` set in your `~/.codex/config.toml`, SnapBack will refuse to overwrite it (Codex only allows one); remove your existing line first.
+
+### Adding more tools
+
+Each supported CLI lives in its own subdirectory next to the core scripts (`claude/`, `codex/`). To add support for another tool, drop in a new folder containing `detect.sh`, `enable.sh`, `disable.sh`, and `status.sh` following the same contract — the `snapback` CLI will pick it up automatically.
 
 ---
 
@@ -272,10 +293,16 @@ Add to `~/.claude/settings.json`:
 
 ## Known Limitations
 
-> These are Claude Code hook constraints, not SnapBack bugs.
+> These are upstream tool constraints, not SnapBack bugs.
 
+**Claude Code:**
 - **No decline hook** — declining a permission request doesn't fire a hook, so SnapBack can't detect it. You'll switch back manually.
 - **Failed tools don't trigger** — `PostToolUse` only fires on successful tool execution.
+
+**Codex CLI:**
+- **One `notify` per config** — Codex only supports a single `notify` command. SnapBack refuses to overwrite an existing one; remove yours first if you have one.
+- **Resume relies on log tailing** — Codex doesn't emit a "user submitted" event, so SnapBack watches the session rollout file. If Codex changes its log format upstream, the resume side may need an update.
+- **Multiple concurrent sessions** — the resume watcher follows the most recently active session (newest rollout file by mtime), which is correct in practice but theoretically wrong if you start a second `codex` immediately after triggering the first.
 
 ---
 

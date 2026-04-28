@@ -5,7 +5,6 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/snapback"
-CLAUDE_SETTINGS="$HOME/.claude/settings.json"
 APP_DIR="$HOME/Applications"
 
 # Load shared config library
@@ -212,39 +211,51 @@ fi
 chmod +x "$SCRIPT_DIR/snapback.sh" "$SCRIPT_DIR/snapback-resume.sh" 2>/dev/null || true
 
 # ============================================================
-# CLAUDE CODE HOOKS
+# AI CLI INTEGRATIONS (per-tool subdirectories)
 # ============================================================
+# We do not hard-code which tools are supported here. We scan for sibling
+# directories that follow the contract (detect.sh, enable.sh, disable.sh,
+# status.sh) and run them.
 
 echo ""
-print_info "Setting up Claude Code hooks..."
+print_info "Detecting AI CLIs..."
 
-setup_hooks() {
-  mkdir -p "$(dirname "$CLAUDE_SETTINGS")"
-
-  if ! command -v jq &>/dev/null; then
-    print_warning "jq not found — hooks not configured"
-    print_info "Install jq, then run: snapback on"
-    return 1
+# Discover tool folders next to this installer.
+detected_tools=()
+for d in "$SCRIPT_DIR"/*/; do
+  name="$(basename "$d")"
+  [[ -x "$d/detect.sh" && -x "$d/enable.sh" ]] || continue
+  if "$d/detect.sh" >/dev/null 2>&1; then
+    detected_tools+=("$name")
   fi
+done
 
-  if [[ ! -f "$CLAUDE_SETTINGS" ]]; then
-    echo '{}' > "$CLAUDE_SETTINGS"
-  fi
-
-  tmp=$(mktemp)
-  jq --arg snapback "$SCRIPT_DIR/snapback.sh" --arg resume "$SCRIPT_DIR/snapback-resume.sh" '
-    .hooks.PermissionRequest = ((.hooks.PermissionRequest // []) | map(select(.hooks[0].command | contains("snapback") | not))) + [{"matcher": "*", "hooks": [{"type": "command", "command": $snapback}]}] |
-    .hooks.Stop = ((.hooks.Stop // []) | map(select(.hooks[0].command | contains("snapback") | not))) + [{"hooks": [{"type": "command", "command": $snapback}]}] |
-    .hooks.PostToolUse = ((.hooks.PostToolUse // []) | map(select(.hooks[0].command | contains("snapback") | not))) + [{"matcher": "Edit|Write|Bash", "hooks": [{"type": "command", "command": $resume}]}] |
-    .hooks.UserPromptSubmit = ((.hooks.UserPromptSubmit // []) | map(select(.hooks[0].command | contains("snapback") | not))) + [{"hooks": [{"type": "command", "command": $resume}]}]
-  ' "$CLAUDE_SETTINGS" > "$tmp" && mv "$tmp" "$CLAUDE_SETTINGS"
-  return 0
-}
-
-if setup_hooks; then
-  print_success "Claude Code hooks configured"
+if [[ ${#detected_tools[@]} -eq 0 ]]; then
+  print_warning "No supported AI CLI detected (Claude Code, Codex, …)"
+  print_info "Install one of them, then run: snapback on"
 else
-  print_warning "Hooks not configured — run 'snapback on' after installing jq"
+  # Decide which detected tools to enable.
+  enable_tools=("${detected_tools[@]}")
+  if [[ "$INTERACTIVE" == "true" && ${#detected_tools[@]} -gt 1 ]]; then
+    echo ""
+    echo "Detected: ${detected_tools[*]}"
+    ask "Enable hooks for all detected tools? [Y/n]: " "Y" enable_all
+    if [[ ! "$enable_all" =~ ^[Yy]?$ ]]; then
+      enable_tools=()
+      for t in "${detected_tools[@]}"; do
+        ask "  Enable $t? [Y/n]: " "Y" yn
+        [[ "$yn" =~ ^[Yy]?$ ]] && enable_tools+=("$t")
+      done
+    fi
+  fi
+
+  for t in "${enable_tools[@]}"; do
+    if "$SCRIPT_DIR/$t/enable.sh"; then
+      :
+    else
+      print_warning "Failed to enable $t (see message above) — run 'snapback on' to retry"
+    fi
+  done
 fi
 
 # ============================================================
@@ -323,5 +334,5 @@ echo ""
 echo "  Config:   $CONFIG_DIR/config"
 echo "  Commands: snapback status | on | off | update"
 echo ""
-print_info "Restart Claude Code to activate hooks"
+print_info "Restart your AI CLI to activate hooks"
 echo ""

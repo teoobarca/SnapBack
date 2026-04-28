@@ -81,6 +81,11 @@ fi
 
 # Make scripts executable
 chmod +x "$INSTALL_DIR/snapback" "$INSTALL_DIR/snapback.sh" "$INSTALL_DIR/snapback-resume.sh" "$INSTALL_DIR/install.sh"
+# Per-tool integration folders (claude/, codex/, …)
+for d in "$INSTALL_DIR"/*/; do
+  [[ -f "$d/detect.sh" && -f "$d/enable.sh" ]] || continue
+  chmod +x "$d"/*.sh 2>/dev/null || true
+done
 
 # Add to PATH — always use ~/.local/bin (no sudo needed)
 print_info "Adding to PATH..."

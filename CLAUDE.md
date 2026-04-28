@@ -4,17 +4,37 @@ This file provides guidance to Claude Code when working with this repository.
 
 ## Project Overview
 
-SnapBack is an attention manager for Claude Code. It pauses browser media, plays a notification sound, and focuses your IDE when Claude needs input. When you respond, it returns you to your previous app and resumes media.
+SnapBack is an attention manager for AI coding CLIs (Claude Code, Codex, …). It pauses browser media, plays a notification sound, and focuses your IDE when the agent needs input. When you respond, it returns you to your previous app and resumes media.
 
 ## Architecture
 
 ```
 get.sh              → Downloads from GitHub, adds to PATH, runs install
 snapback            → CLI wrapper (install/status/on/off/update/uninstall)
-install.sh          → Interactive configuration, sets up Claude hooks
-snapback.sh         → Main attention script (triggered by Claude hooks)
-snapback-resume.sh  → Resume script (returns to previous app)
+install.sh          → Interactive configuration, dispatches to per-tool enablers
+snapback.sh         → Main attention script (tool-agnostic)
+snapback-resume.sh  → Resume script (tool-agnostic, returns to previous app)
+claude/             → Claude Code integration (writes ~/.claude/settings.json)
+codex/              → Codex CLI integration (writes ~/.codex/config.toml + watcher)
 ```
+
+### Multi-tool support
+
+Each supported AI CLI lives in its own subdirectory and exports a fixed contract — four (or five) shell scripts:
+
+| Script | Required | Exit 0 means | Side effects |
+|---|---|---|---|
+| `detect.sh` | yes | the tool is installed on this machine | none |
+| `enable.sh` | yes | registration succeeded | edits the tool's config; idempotent |
+| `disable.sh` | yes | unregistration succeeded | edits the tool's config; idempotent |
+| `status.sh` | yes | SnapBack is currently registered | prints one human-readable line |
+| `notify.sh` | optional | n/a — invoked by the tool itself | tool-specific adapter |
+
+The `snapback` CLI never hard-codes tool names. It scans for sibling directories that look like tool folders (`detect.sh` + `enable.sh` present and executable) and iterates over them for `on`/`off`/`status`/`uninstall`. To add a new AI CLI: create a folder, drop in those four scripts, done.
+
+`notify.sh` only exists for Codex because Codex's `notify` is single-slot and has no resume event — the adapter runs `../snapback.sh` for attention and spawns a background `tail -F` watcher on the active rollout log (`~/.codex/sessions/**/rollout-*.jsonl`) that fires `../snapback-resume.sh` the moment a `"type":"user_message"` line lands. PID file at `$TMPDIR/snapback_codex_watch.pid` so re-fires replace the prior watcher; 30-minute self-timeout via `$SNAPBACK_CODEX_WATCH_TIMEOUT` env var.
+
+Claude Code calls `snapback.sh` and `snapback-resume.sh` directly via its hooks JSON — no adapter needed.
 
 ### Core Scripts
 
@@ -71,10 +91,12 @@ When releasing a new version:
 
 ```
 snapback            # CLI tool - commands: install, status, on, off, update, uninstall
-snapback.sh         # Attention script - pause media, focus IDE
-snapback-resume.sh  # Resume script - return to previous app
-install.sh          # Interactive installer
+snapback.sh         # Attention script - pause media, focus IDE (tool-agnostic)
+snapback-resume.sh  # Resume script - return to previous app (tool-agnostic)
+install.sh          # Interactive installer (dispatches to <tool>/enable.sh)
 get.sh              # Remote installer for curl | bash
+claude/             # Claude Code integration (detect/enable/disable/status.sh)
+codex/              # Codex CLI integration (detect/enable/disable/status/notify.sh)
 notification.mp3    # Default notification sound
 config.example      # Example configuration
 README.md           # User documentation
